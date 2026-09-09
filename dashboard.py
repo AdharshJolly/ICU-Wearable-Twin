@@ -141,8 +141,8 @@ with tab1:
                 
             # --- REASONS ---
             if result["Reasons"]:
-                flags = "<br>".join([f"• {r}" for r in result["Reasons"].split("; ")])
-                reasons_box.error(f"**Flags detected:**<br>{flags}", icon="🧠")
+                flags = "\n".join([f"- {r}" for r in result["Reasons"].split("; ")])
+                reasons_box.error(f"**Flags detected:**\n{flags}", icon="🧠")
             else:
                 reasons_box.success("All vitals within normal parameters. ML Model detects no anomalies.", icon="✨")
                 
@@ -215,8 +215,8 @@ with tab2:
         st.markdown(f'<div class="alert-critical">🚨 Predicted State: {sim_state} (Risk Score: {sim_risk_score})</div>', unsafe_allow_html=True)
         
     if abnormal_reasons:
-        flags = "<br>".join([f"• {r}" for r in abnormal_reasons])
-        st.error(f"**Clinical Flags Triggered:**<br>{flags}", icon="⚕️")
+        flags = "\n".join([f"- {r}" for r in abnormal_reasons])
+        st.error(f"**Clinical Flags Triggered:**\n{flags}", icon="⚕️")
     
     if dummy_pipeline.ml_model is not None:
         import shap
