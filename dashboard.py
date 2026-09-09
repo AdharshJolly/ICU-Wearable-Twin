@@ -55,16 +55,21 @@ st.sidebar.markdown(f"**Age:** `{patient_data['Age']} years`")
 st.sidebar.markdown(f"**Gender:** `{patient_data['Gender']}`")
 st.sidebar.markdown("---")
 
-# =========================================================
+# ---------------------------------------------------------
 # TABS SETUP
-# =========================================================
+# ---------------------------------------------------------
 tab1, tab2 = st.tabs(["🔴 Live ICU Monitor", "🔬 Interventional What-If Simulator"])
 
 # ---------------------------------------------------------
 # TAB 1: LIVE MONITOR
 # ---------------------------------------------------------
 with tab1:
-    if st.sidebar.button("▶️ Start Live Simulation", type="primary", use_container_width=True):
+    col_start, col_stop = st.sidebar.columns(2)
+    start_btn = col_start.button("▶️ Start", type="primary")
+    stop_btn = col_stop.button("⏹️ Stop")
+    
+    if start_btn:
+        import itertools
         
         simulator = DeteriorationSimulator(patient_data)
         readings = simulator.generate_scenario()
@@ -106,7 +111,8 @@ with tab1:
         prev_temp = patient_data["BodyTemp_C"]
         prev_spo2 = patient_data["SpO2"]
         
-        for i, measurement in enumerate(readings):
+        # Infinite Loop for Live Simulation
+        for i, measurement in enumerate(itertools.cycle(readings)):
             current_sim_time = start_time + pd.Timedelta(minutes=i*2)
             result = pipeline.process_measurement(measurement, current_sim_time)
             trajectory_data.append(result)
@@ -154,14 +160,15 @@ with tab1:
                     yaxis=dict(showgrid=True, gridcolor='#E5E7EB'),
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                 )
-                chart_spot.plotly_chart(fig, use_container_width=True)
+                chart_spot.plotly_chart(fig, width="stretch")
                 
             time.sleep(1.2)
             
-        st.success("🏁 Simulation Complete!")
-        st.balloons()
+    elif stop_btn:
+        st.warning("Simulation Stopped.")
+        
     else:
-        st.info("👈 Click **Start Live Simulation** in the sidebar to watch the Digital Twin in action.")
+        st.info("👈 Click **Start** in the sidebar to watch the Digital Twin in action.")
 
 # ---------------------------------------------------------
 # TAB 2: WHAT-IF SIMULATOR
@@ -246,4 +253,4 @@ with tab2:
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_shap, use_container_width=True)
+        st.plotly_chart(fig_shap, width="stretch")
