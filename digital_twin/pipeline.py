@@ -26,6 +26,15 @@ class DigitalTwinPipeline:
 
         # History
         self.trajectory = []
+        
+        # Load ML Model
+        import os
+        import joblib
+        model_path = os.path.join(os.path.dirname(__file__), "anomaly_pipeline.pkl")
+        if os.path.exists(model_path):
+            self.ml_model = joblib.load(model_path)
+        else:
+            self.ml_model = None
 
     # --------------------------------------------------------
     # CHECK LITERATURE-SUPPORTED ABNORMAL CONDITIONS
@@ -35,23 +44,47 @@ class DigitalTwinPipeline:
 
         abnormal_reasons = []
 
-        # Heart rate
-        if measurement["RestingHR"] > 131:
-            abnormal_reasons.append(
-                "RestingHR > 131 bpm"
-            )
+        # Heart rate (Refined: Tachycardia / Bradycardia)
+        if measurement["RestingHR"] > 110:
+            abnormal_reasons.append("RestingHR > 110 bpm (Tachycardia)")
+        elif measurement["RestingHR"] < 40:
+            abnormal_reasons.append("RestingHR < 40 bpm (Bradycardia)")
 
-        # Respiratory rate
-        if measurement["RespRate"] > 25:
-            abnormal_reasons.append(
-                "RespRate > 25 breaths/min"
-            )
+        # Respiratory rate (Refined: Tachypnea / Bradypnea)
+        if measurement["RespRate"] > 22:
+            abnormal_reasons.append("RespRate > 22 breaths/min (Tachypnea)")
+        elif measurement["RespRate"] < 8:
+            abnormal_reasons.append("RespRate < 8 breaths/min (Bradypnea)")
 
-        # Temperature
-        if measurement["BodyTemp_C"] >= 38.1:
-            abnormal_reasons.append(
-                "BodyTemp >= 38.1 C"
-            )
+        # Temperature (Refined: Fever / Hypothermia)
+        if measurement["BodyTemp_C"] > 38.0:
+            abnormal_reasons.append("BodyTemp > 38.0 C (Fever)")
+        elif measurement["BodyTemp_C"] < 36.0:
+            abnormal_reasons.append("BodyTemp < 36.0 C (Hypothermia)")
+
+        # SpO2 (Refined: Hypoxia)
+        if measurement["SpO2"] < 92:
+            abnormal_reasons.append("SpO2 < 92% (Hypoxia)")
+
+        # Blood Pressure (Refined: Hypertension / Hypotension)
+        if measurement["SystolicBP"] > 160:
+            abnormal_reasons.append("SystolicBP > 160 (Hypertension)")
+        elif measurement["SystolicBP"] < 90:
+            abnormal_reasons.append("SystolicBP < 90 (Hypotension)")
+
+        # ML Model Anomaly Detection
+        if self.ml_model is not None:
+            import pandas as pd
+            features = [
+                "SystolicBP", "DiastolicBP", "RestingHR", 
+                "RespRate", "BodyTemp_C", "SpO2", "HRV"
+            ]
+            # Create a single-row dataframe for prediction
+            row = pd.DataFrame([{f: measurement[f] for f in features}])
+            prediction = self.ml_model.predict(row)[0]
+            
+            if prediction == -1:
+                abnormal_reasons.append("ML Anomaly Detected")
 
         return abnormal_reasons
 
