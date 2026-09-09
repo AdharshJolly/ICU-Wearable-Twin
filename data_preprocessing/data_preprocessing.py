@@ -3,241 +3,250 @@
 # ============================================================
 
 import pandas as pd
+import os
 
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
 
 
-# ------------------------------------------------------------
-# 1. Load Dataset
-# ------------------------------------------------------------
+def main():
+    # ------------------------------------------------------------
+    # 1. Load Dataset
+    # ------------------------------------------------------------
+    
+    # Use robust relative path resolution
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    input_path = os.path.join(base_dir, "dataset", "Heart Disease Dataset .csv")
+    output_path = os.path.join(base_dir, "dataset", "preprocessed_patient_data.csv")
 
-df = pd.read_csv(
-    r"C:\Users\abelw\Documents\College\Project\mlproject\dataset\Heart Disease Dataset .csv"
-)
+    df = pd.read_csv(input_path)
 
-print("\n========== FIRST 5 RECORDS ==========")
-print(df.head())
-
-
-# ------------------------------------------------------------
-# 2. Dataset Information
-# ------------------------------------------------------------
-
-print("\n========== DATASET INFORMATION ==========")
-df.info()
-
-print("\n========== DATASET SHAPE ==========")
-print("Rows    :", df.shape[0])
-print("Columns :", df.shape[1])
+    print("\n========== FIRST 5 RECORDS ==========")
+    print(df.head())
 
 
-# ------------------------------------------------------------
-# 3. Select Only Project Variables
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 2. Dataset Information
+    # ------------------------------------------------------------
 
-required_columns = [
-    "Patient_ID",
-    "Age",
-    "Gender",
-    "SystolicBP",
-    "DiastolicBP",
-    "RestingHR",
-    "RespRate",
-    "BodyTemp_C",
-    "SpO2",
-    "RestingECG",
-    "HRV"
-]
+    print("\n========== DATASET INFORMATION ==========")
+    df.info()
 
-df = df[required_columns].copy()
-
-print("\n========== PROJECT DATASET ==========")
-print(df.head())
-
-print("\nColumns being used:")
-print(df.columns.tolist())
+    print("\n========== DATASET SHAPE ==========")
+    print("Rows    :", df.shape[0])
+    print("Columns :", df.shape[1])
 
 
-# ------------------------------------------------------------
-# 4. Check Duplicate Records
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 3. Select Only Project Variables
+    # ------------------------------------------------------------
 
-print("\n========== DUPLICATES ==========")
+    required_columns = [
+        "Patient_ID",
+        "Age",
+        "Gender",
+        "SystolicBP",
+        "DiastolicBP",
+        "RestingHR",
+        "RespRate",
+        "BodyTemp_C",
+        "SpO2",
+        "RestingECG",
+        "HRV"
+    ]
 
-duplicate_count = df.duplicated().sum()
+    df = df[required_columns].copy()
 
-print("Duplicate records:", duplicate_count)
+    print("\n========== PROJECT DATASET ==========")
+    print(df.head())
 
-df = df.drop_duplicates()
-
-print("Shape after removing duplicates:", df.shape)
-
-
-# ------------------------------------------------------------
-# 5. Check Missing Values
-# ------------------------------------------------------------
-
-print("\n========== MISSING VALUES ==========")
-
-print(df.isnull().sum())
-
-
-# ------------------------------------------------------------
-# 6. Separate Patient ID
-# ------------------------------------------------------------
-
-# Patient_ID is only an identifier.
-# It is NOT used as an ML feature.
-
-patient_ids = df["Patient_ID"].copy()
-
-df = df.drop(columns=["Patient_ID"])
+    print("\nColumns being used:")
+    print(df.columns.tolist())
 
 
-# ------------------------------------------------------------
-# 7. Encode Gender
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 4. Check Duplicate Records
+    # ------------------------------------------------------------
 
-gender_encoder = LabelEncoder()
+    print("\n========== DUPLICATES ==========")
 
-df["Gender"] = gender_encoder.fit_transform(
-    df["Gender"].astype(str)
-)
+    duplicate_count = df.duplicated().sum()
 
-print("\n========== GENDER ENCODING ==========")
+    print("Duplicate records:", duplicate_count)
 
-for value, encoded_value in zip(
-    gender_encoder.classes_,
-    gender_encoder.transform(gender_encoder.classes_)
-):
-    print(value, "->", encoded_value)
+    df = df.drop_duplicates()
+
+    print("Shape after removing duplicates:", df.shape)
 
 
-# ------------------------------------------------------------
-# 8. Define Numerical Columns
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 5. Check Missing Values
+    # ------------------------------------------------------------
 
-# RestingECG is NOT included because it is already
-# encoded as 0, 1, 2.
+    print("\n========== MISSING VALUES ==========")
 
-numerical_columns = [
-    "Age",
-    "SystolicBP",
-    "DiastolicBP",
-    "RestingHR",
-    "RespRate",
-    "BodyTemp_C",
-    "SpO2",
-    "HRV"
-]
+    print(df.isnull().sum())
 
 
-# ------------------------------------------------------------
-# 9. Convert Numerical Columns
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 6. Separate Patient ID
+    # ------------------------------------------------------------
 
-for column in numerical_columns:
+    # Patient_ID is only an identifier.
+    # It is NOT used as an ML feature.
 
-    df[column] = pd.to_numeric(
-        df[column],
+    patient_ids = df["Patient_ID"].copy()
+
+    df = df.drop(columns=["Patient_ID"])
+
+
+    # ------------------------------------------------------------
+    # 7. Encode Gender
+    # ------------------------------------------------------------
+
+    gender_encoder = LabelEncoder()
+
+    df["Gender"] = gender_encoder.fit_transform(
+        df["Gender"].astype(str)
+    )
+
+    print("\n========== GENDER ENCODING ==========")
+
+    for value, encoded_value in zip(
+        gender_encoder.classes_,
+        gender_encoder.transform(gender_encoder.classes_)
+    ):
+        print(value, "->", encoded_value)
+
+
+    # ------------------------------------------------------------
+    # 8. Define Numerical Columns
+    # ------------------------------------------------------------
+
+    # RestingECG is NOT included because it is already
+    # encoded as 0, 1, 2.
+
+    numerical_columns = [
+        "Age",
+        "SystolicBP",
+        "DiastolicBP",
+        "RestingHR",
+        "RespRate",
+        "BodyTemp_C",
+        "SpO2",
+        "HRV"
+    ]
+
+
+    # ------------------------------------------------------------
+    # 9. Convert Numerical Columns
+    # ------------------------------------------------------------
+
+    for column in numerical_columns:
+
+        df[column] = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        )
+
+
+    # RestingECG is already numerical
+    df["RestingECG"] = pd.to_numeric(
+        df["RestingECG"],
         errors="coerce"
     )
 
 
-# RestingECG is already numerical
-df["RestingECG"] = pd.to_numeric(
-    df["RestingECG"],
-    errors="coerce"
-)
+    # ------------------------------------------------------------
+    # 10. Handle Missing Numerical Values
+    # ------------------------------------------------------------
 
+    imputer = SimpleImputer(strategy="median")
 
-# ------------------------------------------------------------
-# 10. Handle Missing Numerical Values
-# ------------------------------------------------------------
-
-imputer = SimpleImputer(strategy="median")
-
-df[numerical_columns] = imputer.fit_transform(
-    df[numerical_columns]
-)
-
-
-# Handle missing RestingECG values
-df["RestingECG"] = df["RestingECG"].fillna(
-    df["RestingECG"].mode()[0]
-)
-
-
-# ------------------------------------------------------------
-# 11. Check RestingECG Values
-# ------------------------------------------------------------
-
-print("\n========== RESTING ECG VALUES ==========")
-
-print(
-    sorted(
-        df["RestingECG"].unique()
+    df[numerical_columns] = imputer.fit_transform(
+        df[numerical_columns]
     )
-)
 
 
-# ------------------------------------------------------------
-# 12. Check Vital Sign Ranges
-# ------------------------------------------------------------
+    # Handle missing RestingECG values
+    df["RestingECG"] = df["RestingECG"].fillna(
+        df["RestingECG"].mode()[0]
+    )
 
-print("\n========== VITAL SIGN RANGES ==========")
 
-for column in numerical_columns:
+    # ------------------------------------------------------------
+    # 11. Check RestingECG Values
+    # ------------------------------------------------------------
+
+    print("\n========== RESTING ECG VALUES ==========")
 
     print(
-        f"{column}: "
-        f"{df[column].min()} - {df[column].max()}"
+        sorted(
+            df["RestingECG"].unique()
+        )
     )
 
 
-# ------------------------------------------------------------
-# 13. Feature Scaling
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 12. Check Vital Sign Ranges
+    # ------------------------------------------------------------
 
-scaler = StandardScaler()
+    print("\n========== VITAL SIGN RANGES ==========")
 
-df[numerical_columns] = scaler.fit_transform(
-    df[numerical_columns]
-)
+    for column in numerical_columns:
 
-
-# ------------------------------------------------------------
-# 14. Final Dataset
-# ------------------------------------------------------------
-
-print("\n========== PREPROCESSED DATA ==========")
-
-print(df.head())
+        print(
+            f"{column}: "
+            f"{df[column].min()} - {df[column].max()}"
+        )
 
 
-print("\n========== FINAL SHAPE ==========")
+    # ------------------------------------------------------------
+    # 13. Feature Scaling
+    # ------------------------------------------------------------
 
-print(df.shape)
+    scaler = StandardScaler()
 
-
-print("\n========== FINAL DATA TYPES ==========")
-
-print(df.dtypes)
-
-
-print("\n========== FINAL MISSING VALUES ==========")
-
-print(df.isnull().sum())
+    df[numerical_columns] = scaler.fit_transform(
+        df[numerical_columns]
+    )
 
 
-# ------------------------------------------------------------
-# 15. Save Preprocessed Dataset
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # 14. Final Dataset
+    # ------------------------------------------------------------
 
-df.to_csv(
-    r"C:\Users\abelw\Documents\College\Project\mlproject\dataset\preprocessed_patient_data.csv",
-    index=False
-)
+    print("\n========== PREPROCESSED DATA ==========")
 
-print("\nPreprocessed dataset saved successfully.")
+    print(df.head())
+
+
+    print("\n========== FINAL SHAPE ==========")
+
+    print(df.shape)
+
+
+    print("\n========== FINAL DATA TYPES ==========")
+
+    print(df.dtypes)
+
+
+    print("\n========== FINAL MISSING VALUES ==========")
+
+    print(df.isnull().sum())
+
+
+    # ------------------------------------------------------------
+    # 15. Save Preprocessed Dataset
+    # ------------------------------------------------------------
+
+    df.to_csv(
+        output_path,
+        index=False
+    )
+
+    print("\nPreprocessed dataset saved successfully.")
+
+
+if __name__ == "__main__":
+    main()

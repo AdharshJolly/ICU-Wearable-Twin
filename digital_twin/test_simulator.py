@@ -5,15 +5,14 @@
 from simulator import PatientDataSimulator
 
 
+import os
+
 # ------------------------------------------------------------
 # DATASET LOCATION
 # ------------------------------------------------------------
 
-dataset_path = (
-    r"C:\Users\abelw\Documents\College"
-    r"\Project\mlproject\dataset"
-    r"\Heart Disease Dataset .csv"
-)
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+dataset_path = os.path.join(base_dir, "dataset", "Heart Disease Dataset .csv")
 
 
 # ------------------------------------------------------------

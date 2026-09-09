@@ -32,25 +32,28 @@ class DeteriorationSimulator:
     def deterioration_reading(self, level):
 
         reading = self.stable_reading()
+        
+        # Add slight biological noise
+        import random
+        noise_hr = random.gauss(0, 2)
+        noise_rr = random.gauss(0, 1)
+        noise_temp = random.gauss(0, 0.1)
 
         # Gradual deterioration
         if level == 1:
-
-            reading["RestingHR"] += 15
-            reading["RespRate"] += 3
-            reading["BodyTemp_C"] += 0.5
+            reading["RestingHR"] += 15 + noise_hr
+            reading["RespRate"] += 3 + noise_rr
+            reading["BodyTemp_C"] += 0.5 + noise_temp
 
         elif level == 2:
-
-            reading["RestingHR"] += 30
-            reading["RespRate"] += 7
-            reading["BodyTemp_C"] += 1.0
+            reading["RestingHR"] += 30 + noise_hr
+            reading["RespRate"] += 7 + noise_rr
+            reading["BodyTemp_C"] += 1.0 + noise_temp
 
         elif level == 3:
-
-            reading["RestingHR"] += 45
-            reading["RespRate"] += 12
-            reading["BodyTemp_C"] += 1.5
+            reading["RestingHR"] += 45 + noise_hr
+            reading["RespRate"] += 12 + noise_rr
+            reading["BodyTemp_C"] += 1.5 + noise_temp
 
         return reading
 
@@ -61,24 +64,29 @@ class DeteriorationSimulator:
     def recovery_reading(self, level):
 
         reading = self.stable_reading()
+        
+        # Add slight biological noise
+        import random
+        noise_hr = random.gauss(0, 2)
+        noise_rr = random.gauss(0, 1)
+        noise_temp = random.gauss(0, 0.1)
 
         # Gradual recovery from deterioration
         if level == 1:
-
-            reading["RestingHR"] += 30
-            reading["RespRate"] += 7
-            reading["BodyTemp_C"] += 1.0
+            reading["RestingHR"] += 30 + noise_hr
+            reading["RespRate"] += 7 + noise_rr
+            reading["BodyTemp_C"] += 1.0 + noise_temp
 
         elif level == 2:
-
-            reading["RestingHR"] += 15
-            reading["RespRate"] += 3
-            reading["BodyTemp_C"] += 0.5
+            reading["RestingHR"] += 15 + noise_hr
+            reading["RespRate"] += 3 + noise_rr
+            reading["BodyTemp_C"] += 0.5 + noise_temp
 
         elif level == 3:
-
-            # Almost completely recovered
-            pass
+            # Almost completely recovered, just noise
+            reading["RestingHR"] += noise_hr
+            reading["RespRate"] += noise_rr
+            reading["BodyTemp_C"] += noise_temp
 
         return reading
 
