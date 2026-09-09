@@ -12,10 +12,10 @@ from pipeline import DigitalTwinPipeline
 # ------------------------------------------------------------
 
 twin = DigitalTwinPipeline(
-    patient_id="P001",
-    age=52,
-    gender="Male",
-    sustained_minutes=10
+    patient_id="P003",
+    age=29,
+    gender="Female",
+    sustained_minutes=5
 )
 
 
