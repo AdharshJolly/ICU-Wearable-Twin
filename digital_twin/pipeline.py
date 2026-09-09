@@ -259,6 +259,16 @@ class DigitalTwinPipeline:
         }
 
         self.trajectory.append(record)
+        
+        # ----------------------------------------------------
+        # LOG TO DATABASE
+        # ----------------------------------------------------
+        try:
+            from db_manager import db
+            db.add_patient(self.patient_id, self.age, self.gender)
+            db.log_trajectory(record)
+        except Exception as e:
+            print(f"Failed to log to DB: {e}")
 
         return record
 
