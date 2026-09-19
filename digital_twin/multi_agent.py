@@ -1,8 +1,9 @@
 import os
 import asyncio
 from google import genai
+from google.genai import types
 from dotenv import load_dotenv
-from rag_engine import RAGEngine
+from digital_twin.rag_engine import RAGEngine
 
 load_dotenv()
 
@@ -73,14 +74,26 @@ Pulmonologist Opinion:
 CLINICAL GUIDELINES (RAG Context):
 {rag_context}
 
-Provide a final, authoritative 3-point action plan resolving any conflicts between the specialists. Base your final ruling on the clinical guidelines provided."""
+Provide a concise, authoritative synthesis."""
+
+        from pydantic import BaseModel
         
-        response = await asyncio.to_thread(
-            self.client.models.generate_content,
+        class Synthesis(BaseModel):
+            summary: str
+            primary_diagnosis: str
+            recommended_interventions: list[str]
+            critical_alerts: list[str]
+
+        response = await self.client.aio.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=Synthesis,
+            ),
         )
-        return response.text
+        import json
+        return json.loads(response.text)
 
     async def run_consult(self, patient_data, history_data):
         if not self.enabled:
