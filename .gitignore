@@ -162,3 +162,10 @@ cython_debug/
 Thumbs.db
 *digital_twin.db*
 *.csv
+
+# Custom Additions
+*.db
+test_gemini.py
+dashboard/.env.local
+dashboard/.next
+dashboard/node_modules

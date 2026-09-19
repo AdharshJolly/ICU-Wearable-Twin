@@ -7,6 +7,40 @@ class DeteriorationSimulator:
     def __init__(self, patient):
 
         self.patient = patient
+        
+        # Track active interventions applied by the user
+        self.interventions = {
+            "hr_modifier": 0.0,
+            "spo2_modifier": 0.0,
+            "rr_modifier": 0.0,
+        }
+
+    def apply_intervention(self, action):
+        """Called via WebSocket from the frontend"""
+        if action == "administer_o2":
+            self.interventions["spo2_modifier"] += 4.0
+            self.interventions["rr_modifier"] -= 3.0
+        elif action == "beta_blockers":
+            self.interventions["hr_modifier"] -= 25.0
+        elif action == "fluids":
+            self.interventions["hr_modifier"] -= 10.0
+            
+    def _apply_modifiers(self, reading):
+        """Apply active interventions and naturally decay them over time"""
+        reading["RestingHR"] += self.interventions["hr_modifier"]
+        reading["SpO2"] += self.interventions["spo2_modifier"]
+        reading["RespRate"] += self.interventions["rr_modifier"]
+        
+        # Decay interventions slowly so they aren't permanent magic fixes
+        self.interventions["hr_modifier"] *= 0.95
+        self.interventions["spo2_modifier"] *= 0.95
+        self.interventions["rr_modifier"] *= 0.95
+        
+        # Clamp SpO2 to realistic max
+        if reading["SpO2"] > 100:
+            reading["SpO2"] = 100.0
+            
+        return reading
 
     # --------------------------------------------------------
     # STABLE STATE
@@ -14,7 +48,7 @@ class DeteriorationSimulator:
 
     def stable_reading(self):
 
-        return {
+        reading = {
             "SystolicBP": self.patient["SystolicBP"],
             "DiastolicBP": self.patient["DiastolicBP"],
             "RestingHR": self.patient["RestingHR"],
@@ -24,6 +58,7 @@ class DeteriorationSimulator:
             "RestingECG": self.patient["RestingECG"],
             "HRV": self.patient["HRV"]
         }
+        return self._apply_modifiers(reading)
 
     # --------------------------------------------------------
     # DETERIORATION STATE
@@ -31,7 +66,17 @@ class DeteriorationSimulator:
 
     def deterioration_reading(self, level):
 
-        reading = self.stable_reading()
+        # Get base stable reading (without modifiers yet)
+        reading = {
+            "SystolicBP": self.patient["SystolicBP"],
+            "DiastolicBP": self.patient["DiastolicBP"],
+            "RestingHR": self.patient["RestingHR"],
+            "RespRate": self.patient["RespRate"],
+            "BodyTemp_C": self.patient["BodyTemp_C"],
+            "SpO2": self.patient["SpO2"],
+            "RestingECG": self.patient["RestingECG"],
+            "HRV": self.patient["HRV"]
+        }
         
         # Add slight biological noise
         import random
@@ -55,7 +100,7 @@ class DeteriorationSimulator:
             reading["RespRate"] += 12 + noise_rr
             reading["BodyTemp_C"] += 1.5 + noise_temp
 
-        return reading
+        return self._apply_modifiers(reading)
 
     # --------------------------------------------------------
     # RECOVERY STATE
@@ -63,7 +108,17 @@ class DeteriorationSimulator:
 
     def recovery_reading(self, level):
 
-        reading = self.stable_reading()
+        # Get base stable reading
+        reading = {
+            "SystolicBP": self.patient["SystolicBP"],
+            "DiastolicBP": self.patient["DiastolicBP"],
+            "RestingHR": self.patient["RestingHR"],
+            "RespRate": self.patient["RespRate"],
+            "BodyTemp_C": self.patient["BodyTemp_C"],
+            "SpO2": self.patient["SpO2"],
+            "RestingECG": self.patient["RestingECG"],
+            "HRV": self.patient["HRV"]
+        }
         
         # Add slight biological noise
         import random
@@ -83,77 +138,41 @@ class DeteriorationSimulator:
             reading["BodyTemp_C"] += 0.5 + noise_temp
 
         elif level == 3:
-            # Almost completely recovered, just noise
-            reading["RestingHR"] += noise_hr
-            reading["RespRate"] += noise_rr
-            reading["BodyTemp_C"] += noise_temp
+            reading["RestingHR"] += 0 + noise_hr
+            reading["RespRate"] += 0 + noise_rr
+            reading["BodyTemp_C"] += 0 + noise_temp
 
-        return reading
+        return self._apply_modifiers(reading)
 
     # --------------------------------------------------------
     # GENERATE COMPLETE SCENARIO
     # --------------------------------------------------------
 
     def generate_scenario(self):
-
         readings = []
 
         # ----------------------------------------------------
-        # PHASE 1: STABLE
+        # PHASE 1: STABLE (60 seconds)
         # ----------------------------------------------------
-
-        for _ in range(3):
-
-            readings.append(
-                self.stable_reading()
-            )
+        for _ in range(60):
+            readings.append(self.stable_reading())
 
         # ----------------------------------------------------
-        # PHASE 2: EARLY DETERIORATION
+        # PHASE 2: EARLY DETERIORATION (30 seconds)
         # ----------------------------------------------------
-
-        readings.append(
-            self.deterioration_reading(1)
-        )
+        for _ in range(30):
+            readings.append(self.deterioration_reading(1))
 
         # ----------------------------------------------------
-        # PHASE 3: HIGHER DETERIORATION
+        # PHASE 3: HIGHER DETERIORATION (30 seconds)
         # ----------------------------------------------------
-
-        readings.append(
-            self.deterioration_reading(2)
-        )
+        for _ in range(30):
+            readings.append(self.deterioration_reading(2))
 
         # ----------------------------------------------------
-        # PHASE 4: SEVERE / SUSTAINED ABNORMALITY
+        # PHASE 4: SEVERE / CRITICAL (30 seconds)
         # ----------------------------------------------------
-
-        readings.append(
-            self.deterioration_reading(3)
-        )
-
-        readings.append(
-            self.deterioration_reading(3)
-        )
-
-        readings.append(
-            self.deterioration_reading(3)
-        )
-
-        # ----------------------------------------------------
-        # PHASE 5: RECOVERY
-        # ----------------------------------------------------
-
-        readings.append(
-            self.recovery_reading(1)
-        )
-
-        readings.append(
-            self.recovery_reading(2)
-        )
-
-        readings.append(
-            self.recovery_reading(3)
-        )
-
+        for _ in range(30):
+            readings.append(self.deterioration_reading(3))
+            
         return readings
