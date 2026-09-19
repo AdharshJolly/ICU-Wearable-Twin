@@ -173,3 +173,5 @@ dashboard/node_modules
 dataset/mimic_demo/
 *.pkl
 *.pth
+
+*.png

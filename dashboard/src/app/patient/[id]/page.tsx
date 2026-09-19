@@ -462,14 +462,24 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
                     <span className="text-xs text-slate-400 mb-1 leading-tight">Ensemble Probability<br/>(1 Hour Horizon)</span>
                   </div>
                   
-                  <div className="flex space-x-2 mb-4">
-                    <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
-                      <span className="text-purple-400 block font-sans">LSTM</span>
-                      {riskForecast.lstm_prob}%
+                  <div className="flex flex-col space-y-2 mb-4">
+                    <div className="flex space-x-2">
+                      <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
+                        <span className="text-purple-400 block font-sans">LSTM</span>
+                        {riskForecast.lstm_prob}%
+                      </div>
+                      <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
+                        <span className="text-blue-400 block font-sans">XGBoost</span>
+                        {riskForecast.xgboost_prob}%
+                      </div>
                     </div>
-                    <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
-                      <span className="text-blue-400 block font-sans">XGBoost</span>
-                      {riskForecast.xgboost_prob}%
+                    {/* Interactive Weight Slider (Mock for UI Demo) */}
+                    <div className="px-1 mt-2">
+                      <div className="flex justify-between text-[8px] text-slate-500 mb-1 font-bold uppercase">
+                        <span>100% PyTorch</span>
+                        <span>100% XGBoost</span>
+                      </div>
+                      <input type="range" min="0" max="100" defaultValue="40" className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
                     </div>
                   </div>
                   
@@ -584,6 +594,22 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
               <h3 className="text-purple-400 font-bold text-xl mb-4 flex items-center"><User className="mr-2" size={24}/> Chief Resident Synthesis</h3>
               <p className="text-base text-slate-200 font-serif leading-relaxed whitespace-pre-wrap">{consultData.chief_resident}</p>
             </div>
+            
+            {/* RAG Citations */}
+            {consultData.citations && consultData.citations.length > 0 && (
+              <div className="mt-6 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <h4 className="text-[10px] uppercase text-slate-500 font-bold mb-2 flex items-center">
+                  <Activity size={12} className="mr-1 text-emerald-400" /> Grounded In Clinical Protocols (RAG)
+                </h4>
+                <div className="flex gap-2 flex-wrap">
+                  {consultData.citations.map((cite: string, idx: number) => (
+                    <span key={idx} className="bg-emerald-900/30 text-emerald-400 text-xs px-3 py-1 rounded-full border border-emerald-800/50">
+                      {cite}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

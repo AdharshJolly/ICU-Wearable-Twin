@@ -7,58 +7,73 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import joblib
 
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
+from sklearn.preprocessing import StandardScaler
+
 # ---------------------------------------------------------
-# 1. MIMIC-IV Data Processing
+# 1. MIMIC-IV Data Processing (5 Core Features)
 # ---------------------------------------------------------
 print("Loading MIMIC-IV Demo Dataset...")
 dataset_dir = os.path.join(os.path.dirname(__file__), "..", "dataset", "mimic_demo", "mimic-iv-clinical-database-demo-2.2", "icu")
 
 chartevents_path = os.path.join(dataset_dir, "chartevents.csv.gz")
 if not os.path.exists(chartevents_path):
-    print("MIMIC-IV Demo dataset not found yet. The download might still be in progress.")
-    print("Using a synthetic fallback dataset for LSTM architectural test...")
-    # Synthetic fallback to test architecture while waiting
-    dummy_data = []
-    for subject_id in range(100):
-        for seq in range(20):
-            dummy_data.append({
-                'subject_id': subject_id,
-                'charttime': seq,
-                'valuenum': np.random.normal(75, 10),
-                'itemid': 220045 # HR
-            })
-    df_chart = pd.DataFrame(dummy_data)
+    print("MIMIC-IV Demo dataset not found yet.")
+    exit(1)
 else:
     df_chart = pd.read_csv(chartevents_path, usecols=['subject_id', 'itemid', 'charttime', 'valuenum'])
     df_chart = df_chart.dropna(subset=['valuenum'])
 
-print(f"Loaded {len(df_chart)} clinical events.")
+# Focus on Heart Rate, Resp Rate, SpO2, SysBP, DiaBP
+vital_ids = [220045, 220210, 220277, 220179, 220180]
+df_chart = df_chart[df_chart['itemid'].isin(vital_ids)]
 
-# Extremely simplified preprocessing: Focus on Heart Rate (220045) and SpO2 (220277)
-hr_data = df_chart[df_chart['itemid'] == 220045].rename(columns={'valuenum': 'hr'})
-spo2_data = df_chart[df_chart['itemid'] == 220277].rename(columns={'valuenum': 'spo2'})
+print(f"Loaded {len(df_chart)} clinical events. Pivoting data...")
 
-# For the sake of the demo, we group by subject and create artificial sequences
+pivot_df = df_chart.pivot_table(index=['subject_id', 'charttime'], columns='itemid', values='valuenum').reset_index()
+pivot_df[vital_ids] = pivot_df.groupby('subject_id')[vital_ids].ffill().bfill()
+pivot_df = pivot_df.dropna()
+
+print(f"Created {len(pivot_df)} complete timestamp rows across 5 features.")
+
+X_raw = pivot_df[vital_ids].values
+scaler = StandardScaler()
+X_scaled_all = scaler.fit_transform(X_raw)
+
+joblib.dump(scaler, os.path.join(os.path.dirname(__file__), "icu_scaler.pkl"))
+print("Saved icu_scaler.pkl")
+
+# Attach scaled features back to dataframe for sequence generation
+pivot_df['scaled_f1'] = X_scaled_all[:, 0]
+pivot_df['scaled_f2'] = X_scaled_all[:, 1]
+pivot_df['scaled_f3'] = X_scaled_all[:, 2]
+pivot_df['scaled_f4'] = X_scaled_all[:, 3]
+pivot_df['scaled_f5'] = X_scaled_all[:, 4]
+
 sequences = []
 labels = []
-seq_length = 10 # 10 timesteps
+seq_length = 10 
 
-for subject_id, group in df_chart.groupby('subject_id'):
-    # Extract values sequentially (ignoring strict timestamps for demo brevity)
-    vals = group['valuenum'].values
+for subject_id, group in pivot_df.groupby('subject_id'):
+    vals = group[['scaled_f1', 'scaled_f2', 'scaled_f3', 'scaled_f4', 'scaled_f5']].values
+    hr_raw = group[220045].values
+    sysbp_raw = group[220179].values
+    
     if len(vals) < seq_length:
         continue
     
-    # Slide window
     for i in range(len(vals) - seq_length - 1):
         seq = vals[i:i+seq_length]
-        # Normalize roughly
-        seq = (seq - 70) / 30.0 
-        sequences.append([[x, x*0.9] for x in seq]) # Fake 2-feature vector (HR, SpO2 proxy)
+        sequences.append(seq.tolist()) 
         
-        # Label: Does the next value jump significantly? (Anomaly proxy)
-        next_val = vals[i+seq_length]
-        is_anomaly = 1.0 if abs(next_val - vals[i+seq_length-1]) > 15 else 0.0
+        # Anomaly Label: If HR spikes by 15+ OR SysBP crashes by 15+ in the NEXT timestep
+        next_hr = hr_raw[i+seq_length]
+        current_hr = hr_raw[i+seq_length-1]
+        next_bp = sysbp_raw[i+seq_length]
+        current_bp = sysbp_raw[i+seq_length-1]
+        
+        is_anomaly = 1.0 if (next_hr - current_hr > 15) or (current_bp - next_bp > 15) else 0.0
         labels.append(is_anomaly)
 
 X = torch.tensor(sequences, dtype=torch.float32)
@@ -70,7 +85,7 @@ print(f"Created {len(X)} sequential windows of shape {X.shape}")
 # 2. PyTorch LSTM Architecture
 # ---------------------------------------------------------
 class EarlyWarningLSTM(nn.Module):
-    def __init__(self, input_dim=2, hidden_dim=32, num_layers=2, output_dim=1):
+    def __init__(self, input_dim=5, hidden_dim=32, num_layers=2, output_dim=1):
         super(EarlyWarningLSTM, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -120,7 +135,32 @@ for epoch in range(epochs):
     print(f"Epoch [{epoch+1}/{epochs}], Loss: {epoch_loss/len(loader):.4f}")
 
 # ---------------------------------------------------------
-# 4. Save the Architecture
+# 4. Generate AUROC Plot
+# ---------------------------------------------------------
+print("Generating AUROC diagnostics...")
+model.eval()
+with torch.no_grad():
+    y_pred = model(X).numpy().flatten()
+    y_true = y.numpy().flatten()
+
+fpr, tpr, _ = roc_curve(y_true, y_pred)
+roc_auc = auc(fpr, tpr)
+
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'LSTM ROC curve (area = {roc_auc:.3f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic - Deep Learning Ensemble')
+plt.legend(loc="lower right")
+plot_path = os.path.join(os.path.dirname(__file__), "lstm_roc_curve.png")
+plt.savefig(plot_path)
+print(f"Saved AUROC plot to {plot_path}")
+
+# ---------------------------------------------------------
+# 5. Save the Architecture
 # ---------------------------------------------------------
 model_path = os.path.join(os.path.dirname(__file__), "lstm_early_warning.pth")
 torch.save(model.state_dict(), model_path)

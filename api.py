@@ -67,33 +67,42 @@ import torch
 import torch.nn as nn
 
 class EarlyWarningLSTM(nn.Module):
-    def __init__(self, input_dim=2, hidden_dim=32, num_layers=2, output_dim=1):
+    def __init__(self, input_dim=5, hidden_dim=32, num_layers=2, dropout=0.3, output_dim=1):
         super(EarlyWarningLSTM, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=0.2)
-        self.fc = nn.Linear(hidden_dim, output_dim)
-        self.sigmoid = nn.Sigmoid()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
         out, _ = self.lstm(x, (h0, c0))
-        out = self.fc(out[:, -1, :])
-        return self.sigmoid(out)
+        return self.fc(out[:, -1, :])
 
 # Load Predictive ML Models
 predictive_model_path = os.path.join(os.path.dirname(__file__), "digital_twin", "predictive_icu_model.pkl")
 shap_explainer_path = os.path.join(os.path.dirname(__file__), "digital_twin", "shap_explainer.pkl")
 lstm_path = os.path.join(os.path.dirname(__file__), "digital_twin", "lstm_early_warning.pth")
+scaler_path = os.path.join(os.path.dirname(__file__), "digital_twin", "icu_scaler.pkl")
 
 predictive_model = None
 shap_explainer = None
 lstm_model = None
+icu_scaler = None
 
 if os.path.exists(predictive_model_path):
     predictive_model = joblib.load(predictive_model_path)
     shap_explainer = joblib.load(shap_explainer_path)
+
+if os.path.exists(scaler_path):
+    icu_scaler = joblib.load(scaler_path)
 
 try:
     if os.path.exists(lstm_path):
@@ -123,8 +132,9 @@ async def get_risk_forecast(patient_id: str):
         
         # We don't have BP in logs, so mock it for now based on HR
         sys_data = [120 + (hr - 75)*0.5 for hr in hr_data]
+        dia_data = [80 + (hr - 75)*0.3 for hr in hr_data]
         
-        # Engineer features
+        # Engineer features for XGBoost
         features = {
             'HR_mean': float(sum(hr_data)/len(hr_data)),
             'HR_max': float(max(hr_data)),
@@ -149,15 +159,16 @@ async def get_risk_forecast(patient_id: str):
         
         # PyTorch LSTM Deep Learning Prediction
         lstm_prob = prob # default fallback
-        if lstm_model is not None and len(hr_data) >= 10:
-            seq = []
-            # Take last 10 timesteps
+        if lstm_model is not None and icu_scaler is not None and len(hr_data) >= 10:
+            seq_raw = []
             for i in range(-10, 0):
-                h = (hr_data[i] - 70) / 30.0
-                s = (spo2_data[i] - 90) / 10.0
-                seq.append([h, s])
+                seq_raw.append([hr_data[i], rr_data[i], spo2_data[i], sys_data[i], dia_data[i]])
             
-            x_tensor = torch.tensor([seq], dtype=torch.float32)
+            # Use real MIMIC-IV StandardScaler
+            import numpy as np
+            seq_scaled = icu_scaler.transform(np.array(seq_raw))
+            
+            x_tensor = torch.tensor([seq_scaled], dtype=torch.float32)
             with torch.no_grad():
                 lstm_prob = float(lstm_model(x_tensor).item())
         
