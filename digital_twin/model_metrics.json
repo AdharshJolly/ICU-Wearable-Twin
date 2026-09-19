@@ -61,5 +61,23 @@
         "std": 0.022
       }
     }
-  }
+  },
+  "temporal_comparison": {
+    "lstm": {
+      "auroc_mean": 0.7378,
+      "auroc_std": 0.1924,
+      "auprc_mean": 0.695
+    },
+    "gru": {
+      "auroc_mean": 0.6067,
+      "auroc_std": 0.1865,
+      "auprc_mean": 0.6423
+    },
+    "bilstm": {
+      "auroc_mean": 0.6919,
+      "auroc_std": 0.1978,
+      "auprc_mean": 0.6652
+    }
+  },
+  "best_temporal_model": "lstm"
 }

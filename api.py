@@ -1,6 +1,7 @@
 import os
 import sys
 import pandas as pd
+import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,12 +11,27 @@ from digital_twin.deterioration_simulator import DeteriorationSimulator
 from digital_twin.pipeline import DigitalTwinPipeline
 from digital_twin.llm_agent import ClinicalLLMAgent
 from digital_twin.database import SessionLocal, TelemetryLog
+from digital_twin.counterfactual_engine import CounterfactualEngine
 import json
 import asyncio
 from datetime import datetime
 
 from pydantic import BaseModel
 from digital_twin.multi_agent import MultiAgentBoard
+
+app = FastAPI()
+
+# Allow CORS for Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Instantiate counterfactual engine at startup
+counterfactual_engine = CounterfactualEngine()
 
 app = FastAPI()
 
@@ -61,6 +77,50 @@ async def run_clinical_consult(patient_id: str):
         return result
     finally:
         db.close()
+
+
+# ──────────────────────────────────────────────────────────────
+# COUNTERFACTUAL ENDPOINT
+# POST /api/patients/{id}/counterfactual
+# Body: { "current_vitals": {...}, "state": "DETERIORATING",
+#         "scenarios": ["none", "beta_blockers", "o2_and_fluids"] }
+# ──────────────────────────────────────────────────────────────
+class CounterfactualRequest(BaseModel):
+    current_vitals: dict
+    state: str = "STABLE"
+    scenarios: list = ["none", "administer_o2", "beta_blockers", "o2_and_fluids"]
+    n_steps: int = 30
+
+@app.post("/api/patients/{patient_id}/counterfactual")
+async def run_counterfactual(patient_id: str, req: CounterfactualRequest):
+    """
+    Returns projected risk trajectories for each intervention scenario.
+    This is the Digital Twin counterfactual engine.
+    """
+    result = await asyncio.to_thread(
+        counterfactual_engine.simulate,
+        req.current_vitals,
+        req.state,
+        req.n_steps,
+        req.scenarios,
+    )
+    result["patient_id"] = patient_id
+    result["current_state"] = req.state
+    return result
+
+
+# ──────────────────────────────────────────────────────────────
+# MODEL METRICS ENDPOINT  (for the Evidence Panel in the UI)
+# GET /api/model/metrics
+# ──────────────────────────────────────────────────────────────
+@app.get("/api/model/metrics")
+def get_model_metrics():
+    """Returns the Phase 1 cross-validation metrics for the UI evidence panel."""
+    metrics_path = os.path.join(os.path.dirname(__file__), "digital_twin", "model_metrics.json")
+    if os.path.exists(metrics_path):
+        with open(metrics_path) as f:
+            return json.load(f)
+    return {"error": "Metrics not found. Run train_phase1_correct_ml.py first."}
 
 import joblib
 import torch
@@ -340,6 +400,8 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
                     "rr": float(reading.get("RespRate", 16) + (i % 2)),
                     "temp": float(reading.get("BodyTemp_C", 36.8)),
                     "spo2": float(reading.get("SpO2", 98) - (i % 2)),
+                    "sbp": float(reading.get("SystolicBP", 120)),
+                    "dbp": float(reading.get("DiastolicBP", 80)),
                     "risk_state": risk_state,
                     "reasons": reasons,
                     "active_medications": reading.get("active_medications", {})

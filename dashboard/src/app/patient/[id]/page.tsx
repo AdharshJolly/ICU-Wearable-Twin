@@ -53,6 +53,8 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [consultData, setConsultData] = useState<any>(null);
   const [isConsulting, setIsConsulting] = useState(false);
+  const [counterfactualData, setCounterfactualData] = useState<any>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
   const [riskForecast, setRiskForecast] = useState<any>(null);
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [activeMedications, setActiveMedications] = useState<Record<string, number>>({});
@@ -67,6 +69,22 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
       console.error(err);
     }
     setIsFetchingHistory(false);
+  };
+
+  const runCounterfactual = async () => {
+    setIsSimulating(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/patients/${patientId}/counterfactual`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ current_vitals: metrics, state: riskState })
+      });
+      const data = await res.json();
+      setCounterfactualData(data);
+    } catch(err) {
+      console.error(err);
+    }
+    setIsSimulating(false);
   };
 
   const requestConsult = async () => {
@@ -118,7 +136,9 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     hr: 75,
     rr: 16,
     temp: 36.8,
-    spo2: 98
+    spo2: 98,
+    sbp: 120,
+    dbp: 80
   });
 
   const [llmSummary, setLlmSummary] = useState<string>("");
@@ -199,7 +219,9 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
           hr: data.hr,
           rr: data.rr,
           temp: data.temp,
-          spo2: data.spo2
+          spo2: data.spo2,
+          sbp: data.sbp || 120,
+          dbp: data.dbp || 80
         });
         
         if (data.active_medications) {
@@ -559,6 +581,54 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             ) : (
                logs.map((log, i) => <LogItem key={i} time={log.time} type={log.type as any} message={log.message} />)
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Counterfactual Modal */}
+      {counterfactualData && (
+        <div className="absolute inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-8 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl flex flex-col">
+            <div className="flex justify-between items-center mb-8 flex-none">
+              <h2 className="text-2xl font-bold text-slate-100 flex items-center tracking-wide">
+                <Activity className="mr-3 text-indigo-400" size={32} /> Counterfactual Trajectory Simulation
+              </h2>
+              <button onClick={() => setCounterfactualData(null)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+                ✕
+              </button>
+            </div>
+            
+            <p className="text-slate-400 mb-6">
+              Projecting 60 seconds into the future based on current state <span className="font-bold text-white">({counterfactualData.current_state})</span> using the ICU Early Warning Model.
+            </p>
+
+            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex-1 min-h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                  <XAxis dataKey="step" stroke="#94a3b8" tick={{fill: '#94a3b8'}} type="number" domain={[0, 'dataMax']} />
+                  <YAxis stroke="#94a3b8" tick={{fill: '#94a3b8'}} domain={[0, 100]} label={{ value: 'Risk %', angle: -90, position: 'insideLeft', fill: '#94a3b8' }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                  
+                  {Object.entries(counterfactualData.trajectories).map(([key, traj]: [string, any]) => (
+                    <Line 
+                      key={key}
+                      type="monotone"
+                      name={traj.label}
+                      data={traj.risk.map((r: number, i: number) => ({ step: i, risk: r }))}
+                      dataKey="risk"
+                      stroke={traj.color}
+                      strokeWidth={3}
+                      dot={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}
