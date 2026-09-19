@@ -19,112 +19,54 @@ import random
 import numpy as np
 import joblib
 import os
+import torch
+import torch.nn as nn
 
 MODEL_DIR = os.path.dirname(__file__)
 
-# Intervention physics: delta applied per timestep, with decay
-INTERVENTION_EFFECTS = {
-    "none": {
-        "label": "No Intervention",
-        "color": "#ef4444",
-        "hr_delta": 0.0,
-        "spo2_delta": 0.0,
-        "rr_delta": 0.0,
-        "sbp_delta": 0.0,
-        "dbp_delta": 0.0,
-        "decay": 1.0,          # no decay needed
-    },
-    "administer_o2": {
-        "label": "Supplemental O2",
-        "color": "#06b6d4",
-        "hr_delta": -3.0,
-        "spo2_delta": +5.0,
-        "rr_delta": -2.5,
-        "sbp_delta": +2.0,
-        "dbp_delta": +1.0,
-        "decay": 0.88,          # fast dissipation
-    },
-    "beta_blockers": {
-        "label": "Beta Blocker (Metoprolol)",
-        "color": "#a855f7",
-        "hr_delta": -22.0,
-        "spo2_delta": +1.0,
-        "rr_delta": -1.0,
-        "sbp_delta": -12.0,
-        "dbp_delta": -8.0,
-        "decay": 0.97,          # slow wash-out
-    },
-    "fluids": {
-        "label": "IV Fluids (Saline 30ml/kg)",
-        "color": "#22c55e",
-        "hr_delta": -10.0,
-        "spo2_delta": +1.5,
-        "rr_delta": -0.5,
-        "sbp_delta": +15.0,
-        "dbp_delta": +8.0,
-        "decay": 0.99,
-    },
-    "o2_and_fluids": {
-        "label": "O2 + IV Fluids (Bundle)",
-        "color": "#f59e0b",
-        "hr_delta": -12.0,
-        "spo2_delta": +6.0,
-        "rr_delta": -3.0,
-        "sbp_delta": +14.0,
-        "dbp_delta": +7.0,
-        "decay": 0.93,
-    },
+# 1. Define the Neural Network Architecture for the Learned Dynamics
+class DynamicsNN(nn.Module):
+    def __init__(self, input_dim=9, hidden_dim=64, output_dim=5):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+    def forward(self, x):
+        return self.net(x)
+
+INTERVENTIONS = ["none", "administer_o2", "beta_blockers", "o2_and_fluids"]
+INTERVENTION_META = {
+    "none":           {"label": "No Intervention", "color": "#ef4444"},
+    "administer_o2":  {"label": "Supplemental O2", "color": "#06b6d4"},
+    "beta_blockers":  {"label": "Beta Blocker",    "color": "#a855f7"},
+    "o2_and_fluids":  {"label": "O2 + IV Fluids",  "color": "#f59e0b"},
 }
-
-# Feature engineering matches Phase 1 training exactly
-def _engineer_features(vitals_history: list[dict]) -> np.ndarray:
-    """
-    Takes a list of vital-sign dicts (each tick), 
-    returns the 25-feature vector the XGBoost model expects.
-    """
-    df = {
-        'hr':  [v.get('hr',  75) for v in vitals_history],
-        'rr':  [v.get('rr',  16) for v in vitals_history],
-        'spo2':[v.get('spo2',98) for v in vitals_history],
-        'sbp': [v.get('sbp',120) for v in vitals_history],
-        'dbp': [v.get('dbp', 80) for v in vitals_history],
-    }
-
-    feats = []
-    for key, vals in df.items():
-        arr = np.array(vals, dtype=float)
-        feats.extend([
-            arr.mean(), arr.min(), arr.max(),
-            arr.std() if len(arr) > 1 else 0.0,
-            float(arr[-1] - arr[0]) if len(arr) > 1 else 0.0,  # slope proxy
-        ])
-    return np.array(feats).reshape(1, -1)
-
 
 class CounterfactualEngine:
 
     def __init__(self):
-        model_path   = os.path.join(MODEL_DIR, "predictive_icu_model.pkl")
-        scaler_path  = os.path.join(MODEL_DIR, "icu_scaler.pkl")
-
-        self.model  = joblib.load(model_path)  if os.path.exists(model_path)  else None
-        self.scaler = joblib.load(scaler_path) if os.path.exists(scaler_path) else None
-        self.enabled = self.model is not None
-
-    def _predict_risk(self, vitals_window: list[dict]) -> float:
-        """Predict a risk probability from a window of vitals."""
-        if not self.enabled:
-            return 0.5
+        # We will use the centralized risk service for risk predictions
+        from app.services.risk_service import calculate_risk_forecast
+        self.calculate_risk_forecast = calculate_risk_forecast
+        
+        # Load the newly trained Learned Dynamics Model
+        model_path  = os.path.join(MODEL_DIR, "learned_dynamics_model.pth")
+        scaler_path = os.path.join(MODEL_DIR, "dynamics_scaler.pkl")
+        
         try:
-            X = _engineer_features(vitals_window)
-            if self.scaler:
-                # Scaler was trained on 25 features (5 vitals × 5 stats)
-                # Our feature vector length must match
-                if X.shape[1] == self.scaler.n_features_in_:
-                    X = self.scaler.transform(X)
-            return float(self.model.predict_proba(X)[0, 1])
-        except Exception:
-            return 0.5
+            self.dynamics_model = DynamicsNN()
+            checkpoint = torch.load(model_path, map_location='cpu', weights_only=True)
+            self.dynamics_model.load_state_dict(checkpoint['state_dict'])
+            self.dynamics_model.eval()
+            self.dynamics_scaler = joblib.load(scaler_path)
+            self.enabled = True
+        except Exception as e:
+            print(f"Learned Dynamics load error: {e}")
+            self.enabled = False
 
     def simulate(
         self,
@@ -133,84 +75,83 @@ class CounterfactualEngine:
         n_steps: int = 30,
         scenarios: list[str] | None = None,
     ) -> dict:
-        """
-        Projects n_steps into the future for each scenario.
-
-        current_vitals: dict with keys hr, rr, spo2, sbp, dbp
-        current_state:  'STABLE' | 'DETERIORATING' | 'CRITICAL' etc.
-        n_steps:        number of future ticks (each ~2 seconds in the sim)
-        scenarios:      list of intervention keys to simulate
-
-        Returns:
-        {
-          "steps": [0, 1, ... n_steps],
-          "trajectories": {
-            "none":           { "label": ..., "color": ..., "risk": [...] },
-            "beta_blockers":  { ... },
-            ...
-          }
-        }
-        """
         if scenarios is None:
             scenarios = ["none", "administer_o2", "beta_blockers", "o2_and_fluids"]
 
-        # Determine the underlying physiological drift direction
-        is_deteriorating = current_state in ("DETERIORATING", "CRITICAL", "HIGH_RISK")
-        drift = {
-            'hr':   +0.8  if is_deteriorating else -0.1,
-            'rr':   +0.4  if is_deteriorating else -0.05,
-            'spo2': -0.3  if is_deteriorating else +0.05,
-            'sbp':  -0.6  if is_deteriorating else +0.1,
-            'dbp':  -0.4  if is_deteriorating else +0.05,
-        }
-
         result = {"steps": list(range(n_steps + 1)), "trajectories": {}}
 
+        # Define baseline for risk calculation
+        baseline = {
+            'hr': 75, 'rr': 16, 'spo2': 98, 'sbp': 120, 'dbp': 80
+        }
+
         for scenario_key in scenarios:
-            if scenario_key not in INTERVENTION_EFFECTS:
+            if scenario_key not in INTERVENTION_META:
                 continue
 
-            fx = INTERVENTION_EFFECTS[scenario_key]
-            vitals_window = [dict(current_vitals)]
+            meta = INTERVENTION_META[scenario_key]
+            
+            # One-hot encode the intervention
+            action_idx = INTERVENTIONS.index(scenario_key) if scenario_key in INTERVENTIONS else 0
+            action_vec = [1.0 if i == action_idx else 0.0 for i in range(len(INTERVENTIONS))]
 
-            # Carry the intervention effect, decaying each step
-            effect_remaining = {
-                'hr':   fx['hr_delta'],
-                'spo2': fx['spo2_delta'],
-                'rr':   fx['rr_delta'],
-                'sbp':  fx['sbp_delta'],
-                'dbp':  fx['dbp_delta'],
+            # Keep rolling history for risk calculation
+            history = {
+                'hr': [current_vitals['hr']],
+                'rr': [current_vitals['rr']],
+                'spo2': [current_vitals['spo2']],
+                'sbp': [current_vitals['sbp']],
+                'dbp': [current_vitals['dbp']]
             }
-            decay = fx['decay']
-
-            risk_over_time = [self._predict_risk(vitals_window)]
+            
+            # Initial Risk
+            f = self.calculate_risk_forecast(
+                history['hr'], history['rr'], history['spo2'], history['sbp'], history['dbp'], baseline
+            )
+            risk_over_time = [f.get("risk_probability", 50.0)]
+            
             prev = dict(current_vitals)
 
-            for _ in range(n_steps):
-                noise = lambda s=1.5: random.gauss(0, s)
-                nxt = {
-                    'hr':   np.clip(prev['hr']   + drift['hr']   + effect_remaining['hr']   + noise(1.5), 30, 200),
-                    'rr':   np.clip(prev['rr']   + drift['rr']   + effect_remaining['rr']   + noise(0.5), 4,  50),
-                    'spo2': np.clip(prev['spo2'] + drift['spo2'] + effect_remaining['spo2'] + noise(0.3), 70, 100),
-                    'sbp':  np.clip(prev['sbp']  + drift['sbp']  + effect_remaining['sbp']  + noise(2.0), 60, 200),
-                    'dbp':  np.clip(prev['dbp']  + drift['dbp']  + effect_remaining['dbp']  + noise(1.5), 30, 130),
-                }
-                vitals_window.append(nxt)
-                if len(vitals_window) > 16:
-                    vitals_window.pop(0)
+            for step in range(n_steps):
+                if self.enabled:
+                    # Priority 10: Learned Temporal Dynamics NN!
+                    current_state_vec = [prev['hr'], prev['rr'], prev['spo2'], prev['sbp'], prev['dbp']]
+                    x_input = np.array([current_state_vec + action_vec], dtype=np.float32)
+                    x_scaled = self.dynamics_scaler.transform(x_input)
+                    x_tensor = torch.tensor(x_scaled)
+                    
+                    with torch.no_grad():
+                        delta = self.dynamics_model(x_tensor).numpy()[0]
+                    
+                    # Next state = Current state + Model's predicted Delta + Natural Deterioration drift
+                    drift = 0.5 if current_state in ("DETERIORATING", "CRITICAL", "HIGH_RISK") else 0
+                    
+                    nxt = {
+                        'hr':   np.clip(prev['hr']   + delta[0] + (drift if step < 10 else 0), 30, 200),
+                        'rr':   np.clip(prev['rr']   + delta[1], 4, 50),
+                        'spo2': np.clip(prev['spo2'] + delta[2] - (drift*0.2 if step < 10 else 0), 70, 100),
+                        'sbp':  np.clip(prev['sbp']  + delta[3], 60, 200),
+                        'dbp':  np.clip(prev['dbp']  + delta[4], 30, 130),
+                    }
+                else:
+                    nxt = dict(prev)
 
-                risk_over_time.append(self._predict_risk(vitals_window))
+                for k in history:
+                    history[k].append(nxt[k])
+                    if len(history[k]) > 16:
+                        history[k].pop(0)
 
-                # Decay the intervention effect
-                for k in effect_remaining:
-                    effect_remaining[k] *= decay
-
+                f = self.calculate_risk_forecast(
+                    history['hr'], history['rr'], history['spo2'], history['sbp'], history['dbp'], baseline
+                )
+                risk_over_time.append(f.get("risk_probability", 50.0))
+                
                 prev = nxt
 
             result["trajectories"][scenario_key] = {
-                "label": fx["label"],
-                "color": fx["color"],
-                "risk":  [round(r * 100, 1) for r in risk_over_time],
+                "label": meta["label"],
+                "color": meta["color"],
+                "risk":  risk_over_time,
             }
 
         return result
