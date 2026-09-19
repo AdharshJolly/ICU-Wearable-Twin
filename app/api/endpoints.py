@@ -151,8 +151,8 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
     simulator = DeteriorationSimulator(patient_data)
     scenario_ticks = simulator.generate_scenario()
     
-    risk_state = "STABLE"
-    reasons = []
+    # Priority 14: Dynamic State Machine (Memory Buffer)
+    history_hr, history_rr, history_spo2, history_sbp, history_dbp = [], [], [], [], []
     
     try:
         for i, reading in enumerate(scenario_ticks):
@@ -164,28 +164,67 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
             except asyncio.TimeoutError:
                 pass
             
-            # Use active state mapping
-            if i < 60:
-                risk_state = "STABLE"
-                reasons = ["Normal Vitals"]
-            elif i < 90:
-                risk_state = "ELEVATED"
-                reasons = ["Mild Tachycardia", "Slight Tachypnea"]
-            elif i < 120:
-                risk_state = "HIGH_RISK"
-                reasons = ["Tachycardia", "Hypoxia", "Fever"]
-            else:
-                risk_state = "CRITICAL"
-                reasons = ["Severe Tachycardia", "Severe Hypoxia", "Hypotension"]
+            # Extract current vitals
+            hr = float(reading.get("RestingHR", 75) + (i % 2))
+            rr = float(reading.get("RespRate", 16) + (i % 2))
+            temp = float(reading.get("BodyTemp_C", 36.8))
+            spo2 = float(reading.get("SpO2", 98) - (i % 2))
+            sbp = float(reading.get("SystolicBP", 120))
+            dbp = float(reading.get("DiastolicBP", 80))
+            
+            # Update rolling memory
+            history_hr.append(hr)
+            history_rr.append(rr)
+            history_spo2.append(spo2)
+            history_sbp.append(sbp)
+            history_dbp.append(dbp)
+            
+            # Keep max 16 items for the temporal sequence
+            if len(history_hr) > 16:
+                history_hr.pop(0)
+                history_rr.pop(0)
+                history_spo2.pop(0)
+                history_sbp.pop(0)
+                history_dbp.pop(0)
+                
+            # Default state
+            risk_state = "STABLE"
+            reasons = ["Normal Vitals"]
+            
+            # Priority 14: Dynamic Organic State Transitions
+            if len(history_hr) >= 2:
+                forecast = calculate_risk_forecast(
+                    history_hr, history_rr, history_spo2, history_sbp, history_dbp
+                )
+                
+                if "error" not in forecast:
+                    risk = forecast["risk_probability"]
+                    
+                    # Transition thresholds
+                    if risk < 30:
+                        risk_state = "STABLE"
+                        reasons = ["Vitals within normal limits"]
+                    elif risk < 50:
+                        risk_state = "WATCH"
+                    elif risk < 70:
+                        risk_state = "ELEVATED"
+                    elif risk < 85:
+                        risk_state = "HIGH_RISK"
+                    else:
+                        risk_state = "CRITICAL"
+                        
+                    # Extract dynamic reasons from SHAP factors!
+                    if risk >= 30 and forecast.get("top_factors"):
+                        reasons = [f["description"] for f in forecast["top_factors"][:2]]
                 
             payload = {
                 "time": datetime.now().strftime("%H:%M:%S"),
-                "hr": float(reading.get("RestingHR", 75) + (i % 2)),
-                "rr": float(reading.get("RespRate", 16) + (i % 2)),
-                "temp": float(reading.get("BodyTemp_C", 36.8)),
-                "spo2": float(reading.get("SpO2", 98) - (i % 2)),
-                "sbp": float(reading.get("SystolicBP", 120)),
-                "dbp": float(reading.get("DiastolicBP", 80)),
+                "hr": hr,
+                "rr": rr,
+                "temp": temp,
+                "spo2": spo2,
+                "sbp": sbp,
+                "dbp": dbp,
                 "risk_state": risk_state,
                 "reasons": reasons,
                 "active_medications": reading.get("active_medications", {})
