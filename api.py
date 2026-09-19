@@ -126,14 +126,52 @@ import joblib
 import torch
 import torch.nn as nn
 
-class EarlyWarningLSTM(nn.Module):
-    def __init__(self, input_dim=5, hidden_dim=32, num_layers=2, dropout=0.3, output_dim=1):
-        super(EarlyWarningLSTM, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.num_layers = num_layers
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout)
+# Load Models
+predictive_model = None
+try:
+    predictive_model = joblib.load(os.path.join(os.path.dirname(__file__), "digital_twin", "predictive_icu_model.pkl"))
+except Exception as e:
+    print(f"XGBoost load error: {e}")
+
+shap_explainer = None
+try:
+    shap_explainer = joblib.load(os.path.join(os.path.dirname(__file__), "digital_twin", "shap_explainer.pkl"))
+except Exception as e:
+    print(f"SHAP load error: {e}")
+
+icu_scaler = None
+try:
+    # Use the scaler from Phase 1 for XGBoost features
+    scaler_path = os.path.join(os.path.dirname(__file__), "digital_twin", "icu_scaler.pkl")
+    if os.path.exists(scaler_path):
+        icu_scaler = joblib.load(scaler_path)
+except Exception as e:
+    print(f"Scaler load error: {e}")
+
+lstm_scaler = None
+try:
+    # Use the scaler from Phase 2 for LSTM sequence features
+    scaler_path = os.path.join(os.path.dirname(__file__), "digital_twin", "lstm_scaler.pkl")
+    if os.path.exists(scaler_path):
+        lstm_scaler = joblib.load(scaler_path)
+except Exception as e:
+    pass
+
+# Early Warning LSTM Model (Phase 2 Temporal Model)
+class TemporalModel(nn.Module):
+    def __init__(self, arch='lstm', input_dim=5, hidden_dim=64, num_layers=2, dropout=0.3):
+        super().__init__()
+        self.arch = arch
+        bidirectional = (arch == 'bilstm')
+        rnn_cls = nn.GRU if arch == 'gru' else nn.LSTM
+        self.rnn = rnn_cls(
+            input_dim, hidden_dim, num_layers,
+            batch_first=True, dropout=dropout,
+            bidirectional=bidirectional
+        )
+        fc_in = hidden_dim * 2 if bidirectional else hidden_dim
         self.fc = nn.Sequential(
-            nn.Linear(hidden_dim, 32),
+            nn.Linear(fc_in, 32),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(32, 1),
@@ -141,33 +179,25 @@ class EarlyWarningLSTM(nn.Module):
         )
 
     def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
-        out, _ = self.lstm(x, (h0, c0))
+        out, _ = self.rnn(x)
         return self.fc(out[:, -1, :])
 
-# Load Predictive ML Models
-predictive_model_path = os.path.join(os.path.dirname(__file__), "digital_twin", "predictive_icu_model.pkl")
-shap_explainer_path = os.path.join(os.path.dirname(__file__), "digital_twin", "shap_explainer.pkl")
-lstm_path = os.path.join(os.path.dirname(__file__), "digital_twin", "lstm_early_warning.pth")
-scaler_path = os.path.join(os.path.dirname(__file__), "digital_twin", "icu_scaler.pkl")
-
-predictive_model = None
-shap_explainer = None
 lstm_model = None
-icu_scaler = None
-
-if os.path.exists(predictive_model_path):
-    predictive_model = joblib.load(predictive_model_path)
-    shap_explainer = joblib.load(shap_explainer_path)
-
-if os.path.exists(scaler_path):
-    icu_scaler = joblib.load(scaler_path)
-
 try:
+    lstm_path = os.path.join(os.path.dirname(__file__), "digital_twin", "lstm_early_warning.pth")
     if os.path.exists(lstm_path):
-        lstm_model = EarlyWarningLSTM()
-        lstm_model.load_state_dict(torch.load(lstm_path, map_location=torch.device('cpu'), weights_only=True))
+        checkpoint = torch.load(lstm_path)
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            lstm_model = TemporalModel(
+                arch=checkpoint.get('arch', 'lstm'),
+                hidden_dim=checkpoint.get('hidden_dim', 64),
+                num_layers=checkpoint.get('num_layers', 2),
+                dropout=checkpoint.get('dropout', 0.3)
+            )
+            lstm_model.load_state_dict(checkpoint['state_dict'])
+        else:
+            lstm_model = TemporalModel(arch='lstm', input_dim=5, hidden_dim=32, num_layers=2, dropout=0.3)
+            lstm_model.load_state_dict(checkpoint)
         lstm_model.eval()
 except Exception as e:
     print(f"LSTM load warning: {e}")
@@ -194,39 +224,52 @@ async def get_risk_forecast(patient_id: str):
         sys_data = [120 + (hr - 75)*0.5 for hr in hr_data]
         dia_data = [80 + (hr - 75)*0.3 for hr in hr_data]
         
-        # Engineer features for XGBoost
-        features = {
-            'HR_mean': float(sum(hr_data)/len(hr_data)),
-            'HR_max': float(max(hr_data)),
-            'HR_trend': float(hr_data[-1] - hr_data[0]),
-            'SpO2_mean': float(sum(spo2_data)/len(spo2_data)),
-            'SpO2_min': float(min(spo2_data)),
-            'SpO2_trend': float(spo2_data[-1] - spo2_data[0]),
-            'RR_mean': float(sum(rr_data)/len(rr_data)),
-            'RR_max': float(max(rr_data)),
-            'RR_trend': float(rr_data[-1] - rr_data[0]),
-            'SysBP_mean': float(sum(sys_data)/len(sys_data)),
-            'SysBP_min': float(min(sys_data)),
-            'SysBP_trend': float(sys_data[-1] - sys_data[0]),
-            'Age': 65
+        # Engineer features for XGBoost (Matches Phase 1: 5 vitals x 5 stats = 25 features)
+        import numpy as np
+        df_vitals = {
+            'hr': hr_data,
+            'rr': rr_data,
+            'spo2': spo2_data,
+            'sbp': sys_data,
+            'dbp': dia_data
         }
+        
+        feats = []
+        feature_names = []
+        for key, vals in df_vitals.items():
+            arr = np.array(vals, dtype=float)
+            feats.extend([
+                float(arr.mean()), float(arr.min()), float(arr.max()),
+                float(arr.std()) if len(arr) > 1 else 0.0,
+                float(arr[-1] - arr[0]) if len(arr) > 1 else 0.0
+            ])
+            feature_names.extend([
+                f"{key}_mean", f"{key}_min", f"{key}_max", f"{key}_std", f"{key}_slope"
+            ])
         
         # Predict
         import pandas as pd
-        X = pd.DataFrame([features])
-        # XGBoost Prediction
-        prob = float(predictive_model.predict_proba(X)[0, 1])
+        X = pd.DataFrame([feats], columns=feature_names)
+        
+        # Scale for XGBoost (if the scaler was used in Phase 1 for XGBoost)
+        # Wait, in Phase 1, XGBoost WAS trained on scaled features!
+        if icu_scaler is not None:
+            X_scaled = icu_scaler.transform(X)
+        else:
+            X_scaled = X.values
+            
+        prob = float(predictive_model.predict_proba(X_scaled)[0, 1])
         
         # PyTorch LSTM Deep Learning Prediction
         lstm_prob = prob # default fallback
-        if lstm_model is not None and icu_scaler is not None and len(hr_data) >= 10:
+        if lstm_model is not None and lstm_scaler is not None and len(hr_data) >= 10:
             seq_raw = []
             for i in range(-10, 0):
                 seq_raw.append([hr_data[i], rr_data[i], spo2_data[i], sys_data[i], dia_data[i]])
             
-            # Use real MIMIC-IV StandardScaler
+            # Use real MIMIC-IV StandardScaler for LSTM
             import numpy as np
-            seq_scaled = icu_scaler.transform(np.array(seq_raw))
+            seq_scaled = lstm_scaler.transform(np.array(seq_raw))
             
             x_tensor = torch.tensor([seq_scaled], dtype=torch.float32)
             with torch.no_grad():
@@ -235,27 +278,43 @@ async def get_risk_forecast(patient_id: str):
         # Ensembled Risk Score (60% LSTM, 40% XGBoost)
         ensembled_prob = (lstm_prob * 0.6) + (prob * 0.4)
         
+        # Priority 8: Uncertainty & Model Disagreement
+        disagreement = abs(lstm_prob - prob)
+        if disagreement > 0.3:
+            confidence = "LOW"
+            alert_msg = "High model disagreement detected. Manual review recommended."
+        elif disagreement > 0.15:
+            confidence = "MODERATE"
+            alert_msg = "Moderate model variance."
+        else:
+            confidence = "HIGH"
+            alert_msg = "Models are in strong agreement."
+        
         # SHAP Explanation (Using XGBoost features as proxy for interpretability)
-        shap_values = shap_explainer.shap_values(X)[0]
-        
-        # Format Top 3 Contributors
-        feature_names = list(features.keys())
-        contributions = sorted(zip(feature_names, shap_values), key=lambda x: abs(x[1]), reverse=True)
-        
-        top_factors = []
-        for feat, val in contributions[:3]:
-            impact = "increased" if val > 0 else "decreased"
-            top_factors.append({
-                "feature": feat,
-                "value": round(features[feat], 2),
-                "shap_impact": round(float(val), 3),
-                "description": f"{feat} ({round(features[feat], 1)}) {impact} risk"
-            })
+        try:
+            shap_values = shap_explainer.shap_values(X_scaled)[0]
+            contributions = sorted(zip(feature_names, shap_values), key=lambda x: abs(x[1]), reverse=True)
+            
+            top_factors = []
+            for feat, val in contributions[:3]:
+                impact = "increased" if val > 0 else "decreased"
+                feat_val = round(X[feat].iloc[0], 2)
+                top_factors.append({
+                    "feature": feat,
+                    "value": feat_val,
+                    "shap_impact": round(float(val), 3),
+                    "description": f"{feat} ({round(feat_val, 1)}) {impact} risk"
+                })
+        except Exception:
+            top_factors = []
             
         return {
             "risk_probability": round(ensembled_prob * 100, 1),
             "xgboost_prob": round(prob * 100, 1),
             "lstm_prob": round(lstm_prob * 100, 1),
+            "confidence": confidence,
+            "uncertainty_alert": alert_msg,
+            "disagreement_score": round(disagreement * 100, 1),
             "top_factors": top_factors
         }
     finally:
