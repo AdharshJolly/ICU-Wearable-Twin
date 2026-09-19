@@ -1,0 +1,65 @@
+{
+  "methodology": {
+    "splitting": "Patient-level GroupKFold (n_folds=5)",
+    "scaler": "StandardScaler fitted on training fold ONLY",
+    "label": "Composite: died_within_30d OR LOS > 5 days",
+    "data_source": "MIMIC-IV Clinical Database Demo 2.2",
+    "n_stays": 107,
+    "n_patients": 76,
+    "label_rate": 37.4
+  },
+  "cross_val_results": {
+    "logistic_regression": {
+      "auroc": {
+        "mean": 0.5319,
+        "std": 0.1253
+      },
+      "auprc": {
+        "mean": 0.5026,
+        "std": 0.1208
+      },
+      "sensitivity": {
+        "mean": 0.4467,
+        "std": 0.1724
+      },
+      "specificity": {
+        "mean": 0.5404,
+        "std": 0.2093
+      },
+      "f1": {
+        "mean": 0.4024,
+        "std": 0.165
+      },
+      "brier": {
+        "mean": 0.286,
+        "std": 0.0868
+      }
+    },
+    "xgboost": {
+      "auroc": {
+        "mean": 0.5546,
+        "std": 0.0767
+      },
+      "auprc": {
+        "mean": 0.5208,
+        "std": 0.1735
+      },
+      "sensitivity": {
+        "mean": 0.3578,
+        "std": 0.136
+      },
+      "specificity": {
+        "mean": 0.7518,
+        "std": 0.1309
+      },
+      "f1": {
+        "mean": 0.3854,
+        "std": 0.1524
+      },
+      "brier": {
+        "mean": 0.2844,
+        "std": 0.022
+      }
+    }
+  }
+}
