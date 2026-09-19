@@ -160,3 +160,5 @@ cython_debug/
 # OS generated files
 .DS_Store
 Thumbs.db
+*digital_twin.db*
+*.csv
