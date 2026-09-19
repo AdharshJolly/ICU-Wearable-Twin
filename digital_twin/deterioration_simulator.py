@@ -14,16 +14,20 @@ class DeteriorationSimulator:
             "spo2_modifier": 0.0,
             "rr_modifier": 0.0,
         }
+        self.active_medications = {}
 
     def apply_intervention(self, action):
         """Called via WebSocket from the frontend"""
         if action == "administer_o2":
             self.interventions["spo2_modifier"] += 4.0
             self.interventions["rr_modifier"] -= 3.0
+            self.active_medications["Supplemental O2"] = 100.0
         elif action == "beta_blockers":
             self.interventions["hr_modifier"] -= 25.0
+            self.active_medications["Beta Blocker (Metoprolol)"] = 100.0
         elif action == "fluids":
             self.interventions["hr_modifier"] -= 10.0
+            self.active_medications["IV Fluids (Saline)"] = 100.0
             
     def _apply_modifiers(self, reading):
         """Apply active interventions and naturally decay them over time"""
@@ -35,6 +39,18 @@ class DeteriorationSimulator:
         self.interventions["hr_modifier"] *= 0.95
         self.interventions["spo2_modifier"] *= 0.95
         self.interventions["rr_modifier"] *= 0.95
+        
+        # Decay active medications tracker
+        meds_to_remove = []
+        for med in self.active_medications:
+            self.active_medications[med] *= 0.95
+            if self.active_medications[med] < 1.0:
+                meds_to_remove.append(med)
+                
+        for med in meds_to_remove:
+            del self.active_medications[med]
+            
+        reading["active_medications"] = self.active_medications.copy()
         
         # Clamp SpO2 to realistic max
         if reading["SpO2"] > 100:

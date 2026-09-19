@@ -53,6 +53,9 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [consultData, setConsultData] = useState<any>(null);
   const [isConsulting, setIsConsulting] = useState(false);
+  const [riskForecast, setRiskForecast] = useState<any>(null);
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [activeMedications, setActiveMedications] = useState<Record<string, number>>({});
 
   const fetchHistory = async () => {
     setIsFetchingHistory(true);
@@ -86,6 +89,24 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
       fetchHistory();
     }
   }, [viewMode]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (viewMode === 'live') {
+      const fetchForecast = async () => {
+        try {
+          const res = await fetch(`http://localhost:8000/api/patients/${patientId}/risk-forecast`);
+          const data = await res.json();
+          if (!data.error) {
+            setRiskForecast(data);
+          }
+        } catch (err) {}
+      };
+      fetchForecast(); // initial fetch
+      interval = setInterval(fetchForecast, 5000); // every 5s
+    }
+    return () => clearInterval(interval);
+  }, [viewMode, patientId]);
   
   const hrSeriesMain = useRef<TimeSeries>(new TimeSeries());
   const spo2SeriesMain = useRef<TimeSeries>(new TimeSeries());
@@ -180,6 +201,10 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
           temp: data.temp,
           spo2: data.spo2
         });
+        
+        if (data.active_medications) {
+          setActiveMedications(data.active_medications);
+        }
 
         if (data.risk_state !== riskStateRef.current) {
             let type = 'info';
@@ -293,6 +318,13 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
                 <span>BACK TO LIVE</span>
               </button>
             )}
+            <button 
+              onClick={() => setShowAuditTrail(true)}
+              className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+            >
+              <Clock size={16} />
+              <span className="hidden sm:inline">AUDIT TRAIL</span>
+            </button>
           </div>
         </div>
       </header>
@@ -345,6 +377,29 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
                       Click LIVE STREAM to connect to patient data...
                     </div>
                   )}
+                  
+                  {/* Active Medications Widget */}
+                  {Object.keys(activeMedications).length > 0 && (
+                    <div className="absolute top-4 right-4 bg-slate-950/90 border border-slate-700 p-3 rounded-xl shadow-2xl backdrop-blur-md z-10 w-64">
+                      <h4 className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-2 flex items-center">
+                        <Activity size={12} className="mr-1 text-purple-400"/> Pharmacokinetics
+                      </h4>
+                      <div className="space-y-2.5">
+                        {Object.entries(activeMedications).map(([med, level]) => (
+                           <div key={med}>
+                             <div className="flex justify-between text-[10px] font-semibold mb-1">
+                               <span className="text-emerald-400 truncate pr-2">{med}</span>
+                               <span className="text-slate-300 font-mono">{level.toFixed(0)}%</span>
+                             </div>
+                             <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                               <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000 ease-linear" style={{ width: `${Math.min(level, 100)}%` }}></div>
+                             </div>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <canvas ref={mainCanvasRef} className="w-full h-full rounded-lg" style={{ display: 'block' }}></canvas>
                 </>
               ) : (
@@ -375,7 +430,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         {/* Right Column: Explainability & Logs (3 cols) */}
         <div className="col-span-3 flex flex-col gap-4 min-h-0">
                     {/* AI Explainability */}
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 flex-[1.5] flex flex-col min-h-0">
+            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 flex-1 flex flex-col min-h-0">
               <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex justify-between items-center">
                 <span>Explainability Engine</span>
                 <button 
@@ -394,6 +449,60 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
               <p className="text-sm text-slate-300 leading-relaxed font-serif">
                 {llmSummary || "Waiting for baseline assessment..."}
               </p>
+            </div>
+            
+            {/* Predictive Risk Forecast */}
+            <div className="mb-4 bg-slate-950 p-4 rounded-xl border border-slate-800 relative flex-none">
+              <div className="absolute top-0 right-0 px-2 py-1 bg-cyan-500/20 text-cyan-400 text-[9px] uppercase font-bold rounded-bl-lg rounded-tr-lg">Ensemble Model Risk</div>
+              
+              {riskForecast ? (
+                <div>
+                  <div className="flex items-end mb-2">
+                    <span className="text-3xl font-bold font-mono text-cyan-400 mr-2">{riskForecast.risk_probability}%</span>
+                    <span className="text-xs text-slate-400 mb-1 leading-tight">Ensemble Probability<br/>(1 Hour Horizon)</span>
+                  </div>
+                  
+                  <div className="flex space-x-2 mb-4">
+                    <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
+                      <span className="text-purple-400 block font-sans">LSTM</span>
+                      {riskForecast.lstm_prob}%
+                    </div>
+                    <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
+                      <span className="text-blue-400 block font-sans">XGBoost</span>
+                      {riskForecast.xgboost_prob}%
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 mt-2">
+                    <div className="text-[10px] uppercase text-slate-500 font-bold mb-1">SHAP Feature Explanations</div>
+                    {riskForecast.top_factors.map((factor: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between bg-slate-900 rounded p-1.5 border border-slate-800">
+                        <span className="text-[11px] text-slate-300 truncate w-32">{factor.description}</span>
+                        <div className="flex-1 mx-2 bg-slate-950 h-1.5 rounded-full overflow-hidden flex">
+                          {factor.shap_impact > 0 ? (
+                            <>
+                              <div className="flex-1 border-r border-slate-800"></div>
+                              <div className="flex-1 bg-red-500" style={{ width: `${Math.min(factor.shap_impact * 20, 100)}%` }}></div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex-1 bg-blue-500 ml-auto border-r border-slate-800" style={{ width: `${Math.min(Math.abs(factor.shap_impact) * 20, 100)}%` }}></div>
+                              <div className="flex-1"></div>
+                            </>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-mono font-bold ${factor.shap_impact > 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                          {factor.shap_impact > 0 ? '+' : ''}{factor.shap_impact.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 flex items-center h-24 justify-center">
+                  <RefreshCw className="animate-spin mr-2" size={14} /> Aggregating temporal features...
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -415,25 +524,34 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
                 )}
             </div>
           </div>
-
-          {/* System Logs */}
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 flex-1 flex flex-col min-h-0">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center flex-none">
-              <Clock size={16} className="mr-2" /> Audit Trail
-            </h3>
-            
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-0">
-              {logs.length === 0 ? (
-                 <div className="text-slate-600 text-sm italic">Waiting for events...</div>
-              ) : (
-                 logs.map((log, i) => <LogItem key={i} time={log.time} type={log.type as any} message={log.message} />)
-              )}
-            </div>
-          </div>
-
         </div>
 
       </div>
+
+      {/* Audit Trail Slide-over Overlay */}
+      {showAuditTrail && (
+        <div className="absolute inset-y-0 right-0 w-96 bg-slate-900 border-l border-slate-700 shadow-2xl z-40 flex flex-col transform transition-transform duration-300">
+          <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-slate-950/50">
+            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center">
+              <Clock size={16} className="mr-2" /> Audit Trail
+            </h3>
+            <button 
+              onClick={() => setShowAuditTrail(false)}
+              className="text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-full transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {logs.length === 0 ? (
+               <div className="text-slate-600 text-sm italic text-center mt-10">Waiting for events...</div>
+            ) : (
+               logs.map((log, i) => <LogItem key={i} time={log.time} type={log.type as any} message={log.message} />)
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Consult Modal */}
       {consultData && (

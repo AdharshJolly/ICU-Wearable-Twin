@@ -169,3 +169,7 @@ test_gemini.py
 dashboard/.env.local
 dashboard/.next
 dashboard/node_modules
+
+dataset/mimic_demo/
+*.pkl
+*.pth

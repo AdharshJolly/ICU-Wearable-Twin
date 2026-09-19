@@ -62,6 +62,134 @@ async def run_clinical_consult(patient_id: str):
     finally:
         db.close()
 
+import joblib
+import torch
+import torch.nn as nn
+
+class EarlyWarningLSTM(nn.Module):
+    def __init__(self, input_dim=2, hidden_dim=32, num_layers=2, output_dim=1):
+        super(EarlyWarningLSTM, self).__init__()
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=0.2)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return self.sigmoid(out)
+
+# Load Predictive ML Models
+predictive_model_path = os.path.join(os.path.dirname(__file__), "digital_twin", "predictive_icu_model.pkl")
+shap_explainer_path = os.path.join(os.path.dirname(__file__), "digital_twin", "shap_explainer.pkl")
+lstm_path = os.path.join(os.path.dirname(__file__), "digital_twin", "lstm_early_warning.pth")
+
+predictive_model = None
+shap_explainer = None
+lstm_model = None
+
+if os.path.exists(predictive_model_path):
+    predictive_model = joblib.load(predictive_model_path)
+    shap_explainer = joblib.load(shap_explainer_path)
+
+try:
+    if os.path.exists(lstm_path):
+        lstm_model = EarlyWarningLSTM()
+        lstm_model.load_state_dict(torch.load(lstm_path, map_location=torch.device('cpu'), weights_only=True))
+        lstm_model.eval()
+except Exception as e:
+    print(f"LSTM load warning: {e}")
+
+@app.get("/api/patients/{patient_id}/risk-forecast")
+async def get_risk_forecast(patient_id: str):
+    if predictive_model is None or shap_explainer is None:
+        return {"error": "Predictive model not loaded."}
+        
+    db = SessionLocal()
+    try:
+        # Fetch last 4 hours (simulated as 16 logs for simplicity)
+        logs = db.query(TelemetryLog).filter(TelemetryLog.patient_id == patient_id).order_by(TelemetryLog.timestamp.desc()).limit(16).all()
+        if len(logs) < 2:
+            return {"error": "Not enough historical data for predictive forecasting."}
+            
+        logs.reverse()
+        hr_data = [log.hr for log in logs if log.hr is not None]
+        spo2_data = [log.spo2 for log in logs if log.spo2 is not None]
+        rr_data = [log.rr for log in logs if log.rr is not None]
+        temp_data = [log.temp for log in logs if log.temp is not None]
+        
+        # We don't have BP in logs, so mock it for now based on HR
+        sys_data = [120 + (hr - 75)*0.5 for hr in hr_data]
+        
+        # Engineer features
+        features = {
+            'HR_mean': float(sum(hr_data)/len(hr_data)),
+            'HR_max': float(max(hr_data)),
+            'HR_trend': float(hr_data[-1] - hr_data[0]),
+            'SpO2_mean': float(sum(spo2_data)/len(spo2_data)),
+            'SpO2_min': float(min(spo2_data)),
+            'SpO2_trend': float(spo2_data[-1] - spo2_data[0]),
+            'RR_mean': float(sum(rr_data)/len(rr_data)),
+            'RR_max': float(max(rr_data)),
+            'RR_trend': float(rr_data[-1] - rr_data[0]),
+            'SysBP_mean': float(sum(sys_data)/len(sys_data)),
+            'SysBP_min': float(min(sys_data)),
+            'SysBP_trend': float(sys_data[-1] - sys_data[0]),
+            'Age': 65
+        }
+        
+        # Predict
+        import pandas as pd
+        X = pd.DataFrame([features])
+        # XGBoost Prediction
+        prob = float(predictive_model.predict_proba(X)[0, 1])
+        
+        # PyTorch LSTM Deep Learning Prediction
+        lstm_prob = prob # default fallback
+        if lstm_model is not None and len(hr_data) >= 10:
+            seq = []
+            # Take last 10 timesteps
+            for i in range(-10, 0):
+                h = (hr_data[i] - 70) / 30.0
+                s = (spo2_data[i] - 90) / 10.0
+                seq.append([h, s])
+            
+            x_tensor = torch.tensor([seq], dtype=torch.float32)
+            with torch.no_grad():
+                lstm_prob = float(lstm_model(x_tensor).item())
+        
+        # Ensembled Risk Score (60% LSTM, 40% XGBoost)
+        ensembled_prob = (lstm_prob * 0.6) + (prob * 0.4)
+        
+        # SHAP Explanation (Using XGBoost features as proxy for interpretability)
+        shap_values = shap_explainer.shap_values(X)[0]
+        
+        # Format Top 3 Contributors
+        feature_names = list(features.keys())
+        contributions = sorted(zip(feature_names, shap_values), key=lambda x: abs(x[1]), reverse=True)
+        
+        top_factors = []
+        for feat, val in contributions[:3]:
+            impact = "increased" if val > 0 else "decreased"
+            top_factors.append({
+                "feature": feat,
+                "value": round(features[feat], 2),
+                "shap_impact": round(float(val), 3),
+                "description": f"{feat} ({round(features[feat], 1)}) {impact} risk"
+            })
+            
+        return {
+            "risk_probability": round(ensembled_prob * 100, 1),
+            "xgboost_prob": round(prob * 100, 1),
+            "lstm_prob": round(lstm_prob * 100, 1),
+            "top_factors": top_factors
+        }
+    finally:
+        db.close()
+
 @app.get("/")
 def read_root():
     return {"status": "API is running"}
@@ -202,7 +330,8 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
                     "temp": float(reading.get("BodyTemp_C", 36.8)),
                     "spo2": float(reading.get("SpO2", 98) - (i % 2)),
                     "risk_state": risk_state,
-                    "reasons": reasons
+                    "reasons": reasons,
+                    "active_medications": reading.get("active_medications", {})
                 }
                 
                 # Generate LLM Summary asynchronously
