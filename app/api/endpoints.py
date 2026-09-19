@@ -87,7 +87,16 @@ async def get_risk_forecast_api(patient_id: str):
         sys_data = [120 + (hr - 75)*0.5 for hr in hr_data]
         dia_data = [80 + (hr - 75)*0.3 for hr in hr_data]
         
-        return calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data)
+        # Priority 4: Personalized Baselines (using earliest available log)
+        baseline = {
+            'hr': hr_data[0] if hr_data else 75,
+            'rr': rr_data[0] if rr_data else 16,
+            'spo2': spo2_data[0] if spo2_data else 98,
+            'sbp': sys_data[0] if sys_data else 120,
+            'dbp': dia_data[0] if dia_data else 80
+        }
+        
+        return calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, baseline=baseline)
     finally:
         db.close()
 
@@ -191,10 +200,20 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
             risk_state = "STABLE"
             reasons = ["Normal Vitals"]
             
-            # Priority 14: Dynamic Organic State Transitions
+            # Priority 14 & 4: Dynamic Organic State Transitions with Personalized Baselines
             if len(history_hr) >= 2:
+                # Use the hardcoded initial patient_data as their individual baseline
+                patient_baseline = {
+                    'hr': patient_data['RestingHR'],
+                    'rr': patient_data['RespRate'],
+                    'spo2': patient_data['SpO2'],
+                    'sbp': patient_data['SystolicBP'],
+                    'dbp': patient_data['DiastolicBP']
+                }
+                
                 forecast = calculate_risk_forecast(
-                    history_hr, history_rr, history_spo2, history_sbp, history_dbp
+                    history_hr, history_rr, history_spo2, history_sbp, history_dbp,
+                    baseline=patient_baseline
                 )
                 
                 if "error" not in forecast:

@@ -115,17 +115,25 @@ for _, stay in stays.iterrows():
 
     feats = {'stay_id': sid, 'subject_id': subj, 'label': label}
     for vital_name in VITALS.values():
-        v = stay_charts.loc[stay_charts['name'] == vital_name, 'valuenum']
-        if len(v) == 0:
-            # Skip stays with missing vitals
+        v_sorted = stay_charts.loc[stay_charts['name'] == vital_name].sort_values('charttime')
+        if len(v_sorted) == 0:
             feats = None
             break
+            
+        v = v_sorted['valuenum']
+        # Priority 4: Personalized Baselines (Mean of first 3 readings, or just the first)
+        baseline = v.iloc[:3].mean() if len(v) >= 3 else v.iloc[0]
+        
         feats[f'{vital_name}_mean'] = v.mean()
         feats[f'{vital_name}_min']  = v.min()
         feats[f'{vital_name}_max']  = v.max()
         feats[f'{vital_name}_std']  = v.std() if len(v) > 1 else 0.0
-        # Rate of change (first vs last measurement)
-        v_sorted = stay_charts.loc[stay_charts['name'] == vital_name].sort_values('charttime')
+        
+        # New Personalized Delta features
+        feats[f'{vital_name}_baseline'] = baseline
+        feats[f'{vital_name}_delta_mean'] = v.mean() - baseline
+        feats[f'{vital_name}_delta_max'] = v.max() - baseline
+        
         if len(v_sorted) > 1:
             dt_hours = (v_sorted['charttime'].iloc[-1] - v_sorted['charttime'].iloc[0]).total_seconds() / 3600
             feats[f'{vital_name}_slope'] = (v_sorted['valuenum'].iloc[-1] - v_sorted['valuenum'].iloc[0]) / max(dt_hours, 0.01)

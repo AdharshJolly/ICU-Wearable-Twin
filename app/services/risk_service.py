@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from app.services.model_manager import model_manager
 
-def engineer_xgb_features(hr_data, rr_data, spo2_data, sys_data, dia_data):
+def engineer_xgb_features(hr_data, rr_data, spo2_data, sys_data, dia_data, baseline):
     df_vitals = {
         'hr': hr_data,
         'rr': rr_data,
@@ -15,21 +15,37 @@ def engineer_xgb_features(hr_data, rr_data, spo2_data, sys_data, dia_data):
     feature_names = []
     for key, vals in df_vitals.items():
         arr = np.array(vals, dtype=float)
+        b = baseline.get(key, arr[0])
+        mean_val = float(arr.mean())
+        max_val = float(arr.max())
         feats.extend([
-            float(arr.mean()), float(arr.min()), float(arr.max()),
+            mean_val, float(arr.min()), max_val,
             float(arr.std()) if len(arr) > 1 else 0.0,
+            b,
+            mean_val - b,
+            max_val - b,
             float(arr[-1] - arr[0]) if len(arr) > 1 else 0.0
         ])
         feature_names.extend([
-            f"{key}_mean", f"{key}_min", f"{key}_max", f"{key}_std", f"{key}_slope"
+            f"{key}_mean", f"{key}_min", f"{key}_max", f"{key}_std", 
+            f"{key}_baseline", f"{key}_delta_mean", f"{key}_delta_max", f"{key}_slope"
         ])
     return pd.DataFrame([feats], columns=feature_names), feature_names
 
-def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data):
+def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, baseline=None):
+    if baseline is None:
+        baseline = {
+            'hr': hr_data[0] if hr_data else 75,
+            'rr': rr_data[0] if rr_data else 16,
+            'spo2': spo2_data[0] if spo2_data else 98,
+            'sbp': sys_data[0] if sys_data else 120,
+            'dbp': dia_data[0] if dia_data else 80
+        }
+        
     if not model_manager.predictive_model or not model_manager.shap_explainer:
         return {"error": "Predictive model not loaded."}
         
-    X, feature_names = engineer_xgb_features(hr_data, rr_data, spo2_data, sys_data, dia_data)
+    X, feature_names = engineer_xgb_features(hr_data, rr_data, spo2_data, sys_data, dia_data, baseline)
     
     if model_manager.icu_scaler is not None:
         X_scaled = model_manager.icu_scaler.transform(X)
