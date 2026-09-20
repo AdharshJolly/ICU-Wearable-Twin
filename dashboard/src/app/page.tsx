@@ -10,7 +10,8 @@ export default function WardView() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/patients')
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    fetch(`${apiUrl}/api/patients`)
       .then(res => res.json())
       .then(data => {
         setPatients(data.patients || []);
@@ -35,7 +36,7 @@ export default function WardView() {
           </div>
         </div>
         <div className="flex items-center space-x-4 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-           <div className="flex items-center text-sm font-semibold text-green-400"><CheckCircle size={16} className="mr-2" /> All Stable</div>
+           <div className="flex items-center text-sm font-semibold text-slate-400"><Activity size={16} className="mr-2" /> Live Roster</div>
         </div>
       </header>
 

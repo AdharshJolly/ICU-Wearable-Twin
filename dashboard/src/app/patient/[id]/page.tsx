@@ -15,20 +15,20 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const [riskState, setRiskState] = useState('STABLE');
   const [patientData, setPatientData] = useState({ 
     id: patientId, 
-    name: 'Doe, J.',
+    name: `Patient ${patientId}`,
     age: 65,
-    gender: 'Male',
+    gender: 'Unknown',
     physician: 'Dr. Sarah Chen'
   });
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/patients/${patientId}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}`)
       .then(res => res.json())
       .then(data => {
         if (!data.error) {
           setPatientData({
             id: data.id,
-            name: 'Doe, J.', // Placeholder name
+            name: `Patient ${data.id}`, // Placeholder
             age: data.age,
             gender: data.gender,
             physician: data.physician
@@ -64,7 +64,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const fetchHistory = async () => {
     setIsFetchingHistory(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/patients/${patientId}/history`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/history`);
       const data = await res.json();
       setHistoryData(data.history || []);
     } catch (err) {
@@ -76,7 +76,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const runCounterfactual = async () => {
     setIsSimulating(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/patients/${patientId}/counterfactual`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/counterfactual`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ current_vitals: metrics, state: riskState })
@@ -93,7 +93,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const requestConsult = async () => {
     setIsConsulting(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/patients/${patientId}/consult`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/consult`, {
         method: 'POST'
       });
       const data = await res.json();
@@ -116,7 +116,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     if (viewMode === 'live') {
       const fetchForecast = async () => {
         try {
-          const res = await fetch(`http://localhost:8000/api/patients/${patientId}/risk-forecast`);
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/risk-forecast`);
           const data = await res.json();
           if (!data.error) {
             setRiskForecast(data);
@@ -223,7 +223,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     if (isRunning) {
-      ws.current = new WebSocket(`ws://localhost:8000/ws/simulate/${patientId}`); 
+      ws.current = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace('http', 'ws')}/ws/simulate/${patientId}`); 
       
       setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: 'WebSocket Connected. Streaming Patient Data...' }, ...prev]);
 
@@ -771,3 +771,4 @@ function LogItem({ time, type, message }: { time: string, type: 'info' | 'warnin
     </div>
   );
 }
+

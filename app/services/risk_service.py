@@ -66,17 +66,10 @@ def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, bas
             lstm_prob = float(model_manager.lstm_model(x_tensor).item()) * 100.0
     
     
-    if model_manager.ensemble_meta_model is not None:
-        # Scale to 0-1 for the meta-learner input
-        x_meta = np.array([[xgb_prob / 100.0, lstm_prob / 100.0]])
-        # Get stacked probability
-        ensembled_prob = float(model_manager.ensemble_meta_model.predict_proba(x_meta)[0, 1]) * 100.0
-        # Compute disagreement for UI alerts
-        disagreement = abs(lstm_prob - xgb_prob) / 100.0
-    else:
-        # Fallback to hardcoded if meta-learner is missing
-        ensembled_prob = (lstm_prob * 0.6) + (xgb_prob * 0.4)
-        disagreement = abs(lstm_prob - xgb_prob) / 100.0
+    # Fallback to transparent hardcoded weighting
+    ensembled_prob = (lstm_prob * 0.6) + (xgb_prob * 0.4)
+    disagreement = abs(lstm_prob - xgb_prob) / 100.0
+    
     if disagreement > 0.3:
         confidence = "LOW"
         alert_msg = "High model disagreement detected. Manual review recommended."

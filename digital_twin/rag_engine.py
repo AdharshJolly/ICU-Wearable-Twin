@@ -51,6 +51,19 @@ class RAGEngine:
         if not raw_texts:
             return
             
+        cache_path = os.path.join(kb_path, "vector_cache.pkl")
+        try:
+            import joblib
+            if os.path.exists(cache_path):
+                cached_data = joblib.load(cache_path)
+                self.embeddings = cached_data['embeddings']
+                self.chunks = cached_data['chunks']
+                self.sources = cached_data['sources']
+                print(f"Loaded RAG Vector Store from cache ({len(self.embeddings)} guidelines).")
+                return
+        except Exception:
+            pass
+            
         # Call Gemini Embedding API (Batch mode)
         # Using text-embedding-004 model
         try:
@@ -60,6 +73,17 @@ class RAGEngine:
             )
             # Response returns a list of embeddings
             self.embeddings = np.array([e.values for e in response.embeddings])
+            
+            try:
+                import joblib
+                joblib.dump({
+                    'embeddings': self.embeddings,
+                    'chunks': self.chunks,
+                    'sources': self.sources
+                }, cache_path)
+            except Exception:
+                pass
+                
             print(f"RAG Vector Store built successfully with {len(self.embeddings)} embedded guidelines.")
         except Exception as e:
             print(f"RAG Error during embedding generation: {e}")
