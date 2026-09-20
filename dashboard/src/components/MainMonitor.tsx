@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { HeartPulse } from 'lucide-react';
 // @ts-ignore
 import { SmoothieChart, TimeSeries } from 'smoothie';
 
@@ -64,26 +65,27 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
         chartRef.current = new SmoothieChart({
           millisPerPixel: 15, 
           grid: {
-            strokeStyle: '#1e293b',
+            strokeStyle: 'rgba(16, 185, 129, 0.1)', // Subtle medical green grid
             fillStyle: '#000000', 
             lineWidth: 1,
             millisPerLine: 1000,
-            verticalSections: 8
+            verticalSections: 12,
+            borderVisible: false
           },
-          labels: { fillStyle: '#64748b', fontSize: 12, precision: 0 },
-          minValue: 40,
-          maxValue: 160,
+          labels: { disabled: true },
+          minValue: 20, // Expanded scale to handle overlaps better
+          maxValue: 180,
           responsive: true,
         });
   
         chartRef.current.addTimeSeries(hrSeries.current, { 
           strokeStyle: '#10b981', // emerald-500
-          lineWidth: 2 
+          lineWidth: 2.5 
         });
         
         chartRef.current.addTimeSeries(spo2Series.current, { 
           strokeStyle: '#06b6d4', // cyan-500
-          lineWidth: 2 
+          lineWidth: 2.5 
         });
       }
       
@@ -95,17 +97,67 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
     }
   }, [isRunning]);
 
+  const map = Math.round(metrics.dbp + (metrics.sbp - metrics.dbp) / 3);
+
   return (
-    <div className="clinical-panel p-3 flex flex-col h-full w-full relative border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.05)]" aria-label="Main Central Monitor" role="region">
-      <div className="flex justify-between items-center mb-2 px-2 absolute top-4 left-4 right-4 z-10 pointer-events-none">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 bg-black/50 p-2 rounded backdrop-blur-sm border border-slate-800">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
-          CENTRAL TELEMETRY (HR & SpO2)
-        </h2>
-      </div>
-      <div className="flex-1 w-full relative rounded-lg overflow-hidden bg-black border border-slate-800/80 shadow-inner">
+    <div className="clinical-panel flex flex-row h-full w-full relative overflow-hidden bg-black border-slate-700/50 shadow-[0_0_30px_rgba(0,0,0,0.8)] rounded-xl" aria-label="Main Central Monitor" role="region">
+      
+      {/* Canvas Area (Waveforms) */}
+      <div className="flex-1 relative border-r border-slate-800/80 bg-black">
+        {/* Trace Labels overlay */}
+        <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+          <span className="text-emerald-500 font-bold text-[10px] uppercase bg-black/60 px-1 rounded">ECG II (1.0 mV)</span>
+          <span className="text-cyan-500 font-bold text-[10px] uppercase bg-black/60 px-1 rounded">PLETH (SpO2)</span>
+        </div>
         <canvas ref={canvasRef} className="w-full h-full block"></canvas>
+      </div>
+      
+      {/* Parameters Sidebar (Glowing Digits) */}
+      <div className="w-48 lg:w-64 flex flex-col divide-y divide-slate-800/80 bg-[#040814] shadow-[-10px_0_20px_rgba(0,0,0,0.5)] z-20">
+        
+        {/* ECG Parameter */}
+        <div className="flex-1 flex flex-col justify-center p-3 relative group">
+           <div className="absolute top-2 left-3 text-emerald-500 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+             HR <HeartPulse size={12} className={isRunning ? "animate-pulse" : ""} />
+           </div>
+           <div className="absolute top-2 right-3 text-emerald-500/40 text-[10px] text-right leading-tight">120<br/>50</div>
+           <div className="flex items-baseline justify-end w-full pr-6 lg:pr-8 mt-4">
+              <span className="text-emerald-400 font-mono text-6xl lg:text-7xl tracking-tighter" style={{ textShadow: '0 0 20px rgba(16,185,129,0.4)' }}>
+                {metrics.hr.toFixed(0)}
+              </span>
+           </div>
+        </div>
+
+        {/* SpO2 Parameter */}
+        <div className="flex-1 flex flex-col justify-center p-3 relative group">
+           <div className="absolute top-2 left-3 text-cyan-500 font-bold text-xs uppercase tracking-widest">SpO2 %</div>
+           <div className="absolute top-2 right-3 text-cyan-500/40 text-[10px] text-right leading-tight">100<br/>90</div>
+           <div className="flex items-baseline justify-end w-full pr-6 lg:pr-8 mt-4">
+              <span className="text-cyan-400 font-mono text-6xl lg:text-7xl tracking-tighter" style={{ textShadow: '0 0 20px rgba(6,182,212,0.4)' }}>
+                {metrics.spo2.toFixed(0)}
+              </span>
+           </div>
+        </div>
+        
+        {/* NIBP Parameter */}
+        <div className="flex-1 flex flex-col justify-center p-3 relative group">
+           <div className="absolute top-2 left-3 text-slate-300 font-bold text-xs uppercase tracking-widest">NIBP mmHg</div>
+           <div className="absolute top-2 right-3 text-slate-500/60 text-[10px] text-right leading-tight">160<br/>90</div>
+           <div className="flex flex-col items-end justify-center w-full pr-4 lg:pr-6 mt-4">
+              <div className="flex items-baseline gap-1" style={{ textShadow: '0 0 15px rgba(226,232,240,0.2)' }}>
+                <span className="text-slate-200 font-mono text-4xl lg:text-5xl tracking-tighter">{metrics.sbp.toFixed(0)}</span>
+                <span className="text-slate-500 text-2xl">/</span>
+                <span className="text-slate-200 font-mono text-3xl lg:text-4xl tracking-tighter">{metrics.dbp.toFixed(0)}</span>
+              </div>
+              <div className="text-slate-400 text-xs font-mono font-bold mt-1">
+                MAP ({map})
+              </div>
+           </div>
+        </div>
+
       </div>
     </div>
   );
 }
+
+
