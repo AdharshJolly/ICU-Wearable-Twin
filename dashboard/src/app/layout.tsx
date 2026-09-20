@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Activity, LayoutDashboard, Users, Settings, Database, BrainCircuit } from "lucide-react";
+import Link from "next/link";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -22,22 +23,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
           
           <nav className="flex flex-row md:flex-col items-center justify-around md:justify-start gap-2 md:gap-6 w-full md:flex-1 h-full md:h-auto px-4 md:px-0">
-            <a href="/" aria-label="Ward View" className="p-3 rounded-xl bg-slate-800/50 text-slate-200 border border-slate-700/50 transition-colors tooltip-trigger relative group">
+            <Link href="/" aria-label="Ward View" className="p-3 rounded-xl bg-slate-800/50 text-slate-200 border border-slate-700/50 transition-colors tooltip-trigger relative group">
               <LayoutDashboard className="w-5 h-5" />
               <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 pointer-events-none">Ward View</span>
-            </a>
-            <button aria-label="Patient Roster" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
+            </Link>
+            <Link href="/" aria-label="Patient Roster" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
               <Users className="w-5 h-5" />
               <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200 pointer-events-none">Patient Roster</span>
-            </button>
-            <button aria-label="Digital Twins" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
+            </Link>
+            <Link href="/" aria-label="Digital Twins" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
               <BrainCircuit className="w-5 h-5" />
               <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200 pointer-events-none">Digital Twins</span>
-            </button>
-            <button aria-label="Data Logs" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
+            </Link>
+            <Link href="/" aria-label="Data Logs" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
               <Database className="w-5 h-5" />
               <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200 pointer-events-none">Data Logs</span>
-            </button>
+            </Link>
           </nav>
 
           <div className="hidden md:flex mt-auto flex-col gap-4">

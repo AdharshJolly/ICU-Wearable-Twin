@@ -7,6 +7,7 @@ import { SmoothieChart, TimeSeries } from 'smoothie';
 import DigitalTwinPanel from '@/components/DigitalTwinPanel';
 import PatientHeader from '@/components/PatientHeader';
 import ICUStripCard from '@/components/ICUStripCard';
+import MainMonitor from '@/components/MainMonitor';
 
 export default function Dashboard({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -159,9 +160,11 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         {/* LEFT COLUMN: Vitals & Twin */}
         <div className="xl:col-span-8 flex flex-col gap-4 xl:overflow-y-auto custom-scrollbar pr-0 xl:pr-2 pb-4">
           
+          <MainMonitor metrics={metrics} isRunning={isRunning} />
+
           <div className="flex items-center justify-between px-2 flex-shrink-0">
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-4 h-4 text-emerald-400" aria-hidden="true" /> Real-time Telemetry
+              <Activity className="w-4 h-4 text-emerald-400" aria-hidden="true" /> Individual Metrics
             </h2>
           </div>
 
