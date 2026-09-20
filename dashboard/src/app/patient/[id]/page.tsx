@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, use } from 'react';
-import { Activity, Thermometer, Wind, HeartPulse, Play, Square, User, Users, AlertTriangle, Clock, Zap, Heart, History, RefreshCw, FileText, ChevronRight } from 'lucide-react';
+import { Activity, Thermometer, Wind, HeartPulse, Play, Square, User, Users, AlertTriangle, Clock, Zap, Heart, History, RefreshCw, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
+import Link from 'next/link';
 // @ts-ignore
 import { SmoothieChart, TimeSeries } from 'smoothie';
 import DigitalTwinPanel from '@/components/DigitalTwinPanel';
@@ -178,7 +179,13 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     <div className="min-h-screen xl:h-screen p-4 lg:p-6 mx-auto flex flex-col max-w-[1600px] xl:overflow-hidden">
       
       <div className="flex flex-col md:flex-row justify-between md:items-center mb-4 flex-shrink-0 w-full gap-4">
-        <PatientHeader patientData={patientData} riskState={riskState} />
+        
+        <div className="flex items-center gap-3">
+          <Link href="/" aria-label="Back to Ward View" className="p-3 bg-slate-800/50 hover:bg-slate-700/60 border border-slate-700/50 rounded-xl transition-colors text-slate-400 hover:text-slate-200">
+            <ChevronLeft size={24} />
+          </Link>
+          <PatientHeader patientData={patientData} riskState={riskState} />
+        </div>
         
         <div className="flex gap-4 w-full md:w-auto">
           <button 
