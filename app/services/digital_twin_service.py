@@ -80,7 +80,7 @@ class PatientDigitalTwin:
                 self.history['dbp'], baseline=self.baseline
             )
 
-        # 2. Dynamic State Machine with Hysteresis (Priority 14)
+        # 2. Dynamic State Machine with Hysteresis (
         reasons = ["Vitals within normal limits"]
         confidence = "HIGH"
         risk_prob = self.last_risk
