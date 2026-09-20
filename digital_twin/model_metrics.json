@@ -11,73 +11,55 @@
   "cross_val_results": {
     "logistic_regression": {
       "auroc": {
-        "mean": 0.5319,
-        "std": 0.1253
+        "mean": 0.4833,
+        "std": 0.1053
       },
       "auprc": {
-        "mean": 0.5026,
-        "std": 0.1208
+        "mean": 0.4353,
+        "std": 0.125
       },
       "sensitivity": {
-        "mean": 0.4467,
-        "std": 0.1724
+        "mean": 0.3122,
+        "std": 0.0835
       },
       "specificity": {
-        "mean": 0.5404,
-        "std": 0.2093
+        "mean": 0.607,
+        "std": 0.1744
       },
       "f1": {
-        "mean": 0.4024,
-        "std": 0.165
+        "mean": 0.3098,
+        "std": 0.0931
       },
       "brier": {
-        "mean": 0.286,
-        "std": 0.0868
+        "mean": 0.3161,
+        "std": 0.0698
       }
     },
     "xgboost": {
       "auroc": {
-        "mean": 0.5546,
-        "std": 0.0767
+        "mean": 0.5732,
+        "std": 0.1147
       },
       "auprc": {
-        "mean": 0.5208,
-        "std": 0.1735
+        "mean": 0.5285,
+        "std": 0.1684
       },
       "sensitivity": {
-        "mean": 0.3578,
-        "std": 0.136
+        "mean": 0.3133,
+        "std": 0.131
       },
       "specificity": {
-        "mean": 0.7518,
-        "std": 0.1309
+        "mean": 0.7195,
+        "std": 0.1014
       },
       "f1": {
-        "mean": 0.3854,
-        "std": 0.1524
+        "mean": 0.3273,
+        "std": 0.1256
       },
       "brier": {
-        "mean": 0.2844,
-        "std": 0.022
+        "mean": 0.2895,
+        "std": 0.0405
       }
     }
-  },
-  "temporal_comparison": {
-    "lstm": {
-      "auroc_mean": 0.7378,
-      "auroc_std": 0.1924,
-      "auprc_mean": 0.695
-    },
-    "gru": {
-      "auroc_mean": 0.6067,
-      "auroc_std": 0.1865,
-      "auprc_mean": 0.6423
-    },
-    "bilstm": {
-      "auroc_mean": 0.6919,
-      "auroc_std": 0.1978,
-      "auprc_mean": 0.6652
-    }
-  },
-  "best_temporal_model": "lstm"
+  }
 }

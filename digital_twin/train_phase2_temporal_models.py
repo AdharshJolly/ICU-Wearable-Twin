@@ -1,5 +1,5 @@
 """
-PRIORITY 7 — GRU vs LSTM Temporal Model Comparison
+
 ====================================================
 Uses the same patient-level GroupKFold methodology from Phase 1.
 Scaler fitted on training fold ONLY.
@@ -358,6 +358,6 @@ chart_path = os.path.join(OUT, "temporal_model_comparison.png")
 plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='#0f172a')
 print(f"  Saved chart to {chart_path}")
 
-print("\n[DONE] Priority 7 complete.")
+print("\n[DONE] 
 print(f"  Best temporal model: {best_arch.upper()}")
 print(f"  Model saved + metrics updated.")

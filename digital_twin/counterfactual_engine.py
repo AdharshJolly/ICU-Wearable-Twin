@@ -114,7 +114,7 @@ class CounterfactualEngine:
 
             for step in range(n_steps):
                 if self.enabled:
-                    # Priority 10: Learned Temporal Dynamics NN!
+                    
                     current_state_vec = [prev['hr'], prev['rr'], prev['spo2'], prev['sbp'], prev['dbp']]
                     x_input = np.array([current_state_vec + action_vec], dtype=np.float32)
                     x_scaled = self.dynamics_scaler.transform(x_input)

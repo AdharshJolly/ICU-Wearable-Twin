@@ -65,7 +65,7 @@ def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, bas
         with torch.no_grad():
             lstm_prob = float(model_manager.lstm_model(x_tensor).item()) * 100.0
     
-    # Priority 9: Stacking Meta-Learner for Ensemble Weights
+    
     if model_manager.ensemble_meta_model is not None:
         # Scale to 0-1 for the meta-learner input
         x_meta = np.array([[xgb_prob / 100.0, lstm_prob / 100.0]])

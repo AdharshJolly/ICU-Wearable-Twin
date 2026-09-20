@@ -11,7 +11,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="ICU Wearable Twin API",
-        description="Phase 9 Refactored FastAPI Service",
+        description="
         version="2.0.0"
     )
 

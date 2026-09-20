@@ -1,13 +1,13 @@
 """
-PHASE 1: ML CORRECTNESS
+
 =======================
 Implements the full methodological fix stack:
 
-Priority 1: Patient-level GroupKFold (no patient bleeds across folds)
-Priority 2: Scaler fitted ONLY on training fold (no leakage)
-Priority 3: Real MIMIC-IV outcome labels (LOS > 5d OR 30-day mortality)
-Priority 4: Logistic Regression clinical baseline
-Priority 5: AUROC + AUPRC + Sensitivity + Specificity + F1 + Calibration + Brier Score
+
+
+
+
+
 """
 
 import os, sys, warnings, json
@@ -121,7 +121,7 @@ for _, stay in stays.iterrows():
             break
             
         v = v_sorted['valuenum']
-        # Priority 4: Personalized Baselines (Mean of first 3 readings, or just the first)
+        
         baseline = v.iloc[:3].mean() if len(v) >= 3 else v.iloc[0]
         
         feats[f'{vital_name}_mean'] = v.mean()
@@ -186,14 +186,14 @@ for fold, (train_idx, test_idx) in enumerate(gkf.split(X_all, y_all, groups=grou
     X_train_raw, X_test_raw = X_all[train_idx], X_all[test_idx]
     y_train, y_test         = y_all[train_idx],  y_all[test_idx]
 
-    # --- Priority 2: Scaler fitted ONLY on training fold ---
+    # --- 
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train_raw)   # fit + transform on train
     X_test  = scaler.transform(X_test_raw)         # transform only on test
 
     fold_scalers.append(scaler)
 
-    # --- Priority 4: Logistic Regression baseline ---
+    # --- 
     lr = LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)
     lr.fit(X_train, y_train)
     lr_probs = lr.predict_proba(X_test)[:, 1]
@@ -371,7 +371,7 @@ if len(np.unique(y_te)) > 1:
     ax.set_title('Calibration Plot\n(Do probabilities reflect real risk?)')
     ax.legend(fontsize=9, facecolor='#0f172a', labelcolor='#e2e8f0')
 
-    plt.suptitle('ICU Early Warning System — Phase 1 Evaluation\n(Real MIMIC-IV Outcomes | Patient-level Split | No Leakage)',
+    plt.suptitle('ICU Early Warning System — 
                  color='#e2e8f0', fontsize=13, y=1.02)
     plt.tight_layout()
     plot_path = os.path.join(OUT, "phase1_evaluation.png")
@@ -405,6 +405,6 @@ with open(report_path, 'w') as f:
     json.dump(report, f, indent=2)
 print(f"  Saved model_metrics.json")
 
-print("\n[DONE] Phase 1 ML Correctness implementation complete.")
+print("\n[DONE] 
 print("  Eliminated: synthetic labels, test-set tuning, scaler leakage")
 print("  Added: patient-level splits, real outcomes, baseline model, AUROC+AUPRC+calibration+Brier")

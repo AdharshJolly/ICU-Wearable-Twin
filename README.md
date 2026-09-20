@@ -1,91 +1,50 @@
-# An Explainable Machine Learning-Based Patient Digital Twin for Early Detection of Patient Deterioration
+# ICU Patient Digital Twin & Clinical Decision Support System
 
-## 📌 Project Overview
-This project implements a **Hybrid Clinical Decision Support System (CDSS)** and **Patient Digital Twin** designed to monitor real-time (or simulated) patient vital signs. It is built to bridge the gap between continuous wearable biomarker tracking, predictive Machine Learning, and explainable medical reasoning.
+## Overview
+This project implements a sophisticated **Patient Digital Twin** and **Hybrid Clinical Decision Support System (CDSS)** designed for continuous Intensive Care Unit (ICU) monitoring. It bridges the gap between continuous telemetry streaming, predictive Machine Learning, large language model (LLM) clinical reasoning, and interactive physiological simulation.
 
-*Note: As per the updated project scope, physical wearable hardware (ESP32, MAX30102, etc.) is simulated using a software-driven data stream.*
-
----
-
-## 🏗️ System Architecture & Workflow
-
-The digital twin processes patient data through a comprehensive, multi-layer architecture:
-
-1. **Patient Vital Signs** (Simulated stream or Historical Data)
-2. **Data Preprocessing**
-3. **Unsupervised ML Model** (Isolation Forest)
-4. **Clinical Rule Engine** (SIRS / NEWS standards)
-5. **Digital Twin Patient State** (Risk scoring & sustained abnormalities)
-6. **SQLite Database** (Permanent EHR logging)
-7. **Web Dashboard** (Real-time monitoring, Alerts, SHAP Explainability, & What-If Simulation)
+By maintaining a continuous computational representation of the patient, the system predicts deterioration trajectories before they occur and allows clinicians to simulate "what-if" pharmacological interventions with real-time feedback.
 
 ---
 
-## 🧩 Module Breakdown (For Project Report)
+## System Architecture
 
-### 1. Patient Data Input & Simulator (`digital_twin/deterioration_simulator.py`)
-Instead of physical hardware, the system uses a controlled software simulator. It takes a baseline patient from the dataset and injects **biological noise** (using Gaussian randomness) while safely transitioning the patient through stable, deteriorating, and recovery states to test the system's responsiveness.
+The digital twin processes high-frequency patient telemetry through a multi-tier architecture:
 
-### 2. Data Preprocessing & EDA (`data_preprocessing/`, `analysis/`)
-Handles missing values, scaling, and feature engineering. Standardized pipelines ensure that raw sensor data is correctly normalized before entering the ML model.
-
-### 3. Machine Learning Model (`digital_twin/train_ml_model.py`)
-- **Algorithm Used:** `IsolationForest` (Unsupervised Anomaly Detection).
-- **Why?** Our historical dataset contains baseline measurements without explicit "Deterioration = True/False" labels. Instead of forcing a supervised model, we use an Isolation Forest to learn the high-dimensional mathematical boundaries of "Normal" patient vitals. 
-- When a patient's vitals deviate from this learned normal distribution, the model flags it as an anomaly.
-
-### 4. Explainable Rule Engine (`digital_twin/pipeline.py`)
-The system doesn't rely solely on the "black-box" ML model. It integrates hardcoded clinical thresholds:
-- **Tachycardia / Bradycardia:** HR > 110 or < 40
-- **Tachypnea / Bradypnea:** RR > 22 or < 8
-- **Fever / Hypothermia:** Temp > 38.0°C or < 36.0°C
-- **Hypoxia:** SpO2 < 92%
-- **Hypertension / Hypotension:** Systolic BP > 160 or < 90
-
-**Sustained Abnormality Window:** To prevent alert fatigue, the engine tracks how long a condition persists before escalating the patient from `HIGH RISK` to `CRITICAL`.
-
-### 5. Database Integration (`digital_twin/db_manager.py`)
-Uses **SQLite** to provide a persistent Electronic Health Record (EHR) logging layer. Every generated vital sign and risk state is permanently logged to `digital_twin.db` for retrospective analysis.
-
-### 6. Web Dashboard & UI (`dashboard.py`)
-Built using **Streamlit** and **Plotly**, serving two main functions:
-1. **Live ICU Monitor:** Continuously streams the simulated patient, updates delta metrics, logs clinical flags, and plots the vitals trajectory in real-time.
-2. **What-If Interventional Simulator:** Allows a clinician to manually adjust vital sliders to instantly see the predicted risk score.
-
-### 7. Explainability & SHAP (Inside the Dashboard)
-In the What-If Simulator, the system generates a **SHAP (SHapley Additive exPlanations)** plot. This breaks down the Isolation Forest's internal logic, showing exactly which vital signs pushed the patient into an anomalous state (Red) and which kept them stable (Blue).
+1. **Patient Telemetry Stream:** High-frequency ingestion of vitals (HR, SpO2, RR, SBP, DBP, Temp).
+2. **Patient Digital Twin Core:** Maintains stateful physiological tracking, baseline deviations, memory, and hysteresis to prevent alert flickering.
+3. **Ensemble Meta-Learner:** A stacking model combining calibrated XGBoost and sequence-based Deep Learning (LSTM/GRU) trained on real clinical outcomes.
+4. **Clinical LLM Agent (RAG-Enabled):** A Generative AI "Chief Resident" agent that analyzes anomalies against rigorous medical protocols (AHA ACLS, Surviving Sepsis, ARDSNet) to output structured clinical notes and intervention recommendations.
+5. **Counterfactual Simulation Engine:** A trained Neural Network dynamics model that predicts next-state physiological responses to pharmacological interventions (e.g., Beta Blockers, IV Fluids, Supplemental O2).
+6. **Next.js Real-time Dashboard:** A clinical monitoring interface featuring live ICU waveforms, explainability panels, pharmacokinetics tracking, and board-consult interfaces.
 
 ---
 
-## 🚀 How to Run the System
+## Core Capabilities
 
-### 1. Install Requirements
-Ensure you have the necessary Python libraries installed:
-```bash
-pip install pandas scikit-learn streamlit plotly shap
-```
+### 1. The Patient Digital Twin
+Unlike simple monitoring software that only displays the latest reading, the **PatientDigitalTwin** acts as a stateful object. It tracks the patient's biological baseline upon admission and calculates live deviations (deltas). It orchestrates rolling memory banks for time-series models and manages the natural drift of the patient's health.
 
-### 2. Train the Machine Learning Model
-Before running the dashboard, generate the model pipeline file (`anomaly_pipeline.pkl`):
-```bash
-python digital_twin/train_ml_model.py
-```
+### 2. Predictive Ensemble Meta-Learner
+The system utilizes a hybrid modeling approach for early warning detection:
+- **XGBoost:** Analyzes static baselines and immediate point-in-time anomalies.
+- **BiLSTM / GRU:** Captures temporal deterioration patterns across a sliding window of historical telemetry.
+- **Logistic Regression Meta-Learner:** Calibrates the outputs of the underlying models to produce a strictly bounded, clinically accurate probability score for clinical deterioration.
 
-### 3. Launch the Live Dashboard
-Start the interactive Streamlit server:
-```bash
-streamlit run dashboard.py
-```
-*The dashboard will automatically open in your default web browser.*
+### 3. Pharmacokinetic Counterfactual Engine
+Clinicians can use the UI to simulate interventions. The **Learned Dynamics NN** projects the patient's future physiological trajectory under different clinical scenarios. When a medication (e.g., a Beta Blocker) is administered in the live stream, the Twin inherently models the biological half-life and decay, suppressing specific symptoms while tracking the underlying disease drift.
 
-### 4. Generate Evaluation Plots (Optional)
-To generate static 2D Scatter and Time-Series plots for your final report:
-```bash
-python analysis/ml_evaluation_plots.py
-```
+### 4. AI Explainability & RAG Consults
+The "Board Consult" feature triggers a clinical reasoning pipeline. The system retrieves relevant medical protocols via a local Knowledge Base (RAG) and passes the patient's digital twin snapshot to a structured LLM Agent. The agent returns a strictly formatted JSON response detailing the primary diagnosis, actionable interventions, and explicit citations to medical literature, minimizing hallucination risk.
+
+### 5. Persistent Electronic Health Records
+A robust SQLAlchemy backend provides a persistent EHR layer. Every generated vital sign, risk state transition, and clinical summary is permanently logged to the system database for retrospective audit trails and long-term analysis.
 
 ---
 
-## 💡 Key Contributions to highlight in the Report
-Your literature review identified a major gap: **the lack of an explainable rule engine connected to continuous predictive modeling**. 
-This project solves that exact gap by creating a **Hybrid CDSS** where Unsupervised Anomaly Detection (Isolation Forest) works *alongside* strict clinical rules, all wrapped in a visually interpretable "Digital Twin" dashboard that provides SHAP explainability.
+## Repository Structure
+
+- pp/: FastAPI backend, WebSocket endpoints, and core Digital Twin services.
+- dashboard/: Next.js frontend with TailwindCSS, Recharts, and SmoothieChart for real-time waveform visualization.
+- digital_twin/: Machine Learning models, Counterfactual Neural Networks, LLM Agents, and training pipelines.
+- knowledge_base/: Markdown-formatted clinical guidelines driving the RAG architecture.

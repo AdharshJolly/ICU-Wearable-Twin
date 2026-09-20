@@ -85,11 +85,11 @@ async def get_risk_forecast_api(patient_id: str):
         rr_data = [log.rr for log in logs if log.rr is not None]
         temp_data = [log.temp for log in logs if log.temp is not None]
         
-        # Priority 19: Use real BP from database instead of fake generation
+        
         sys_data = [log.sbp if log.sbp else 120 for log in logs]
         dia_data = [log.dbp if log.dbp else 80 for log in logs]
         
-        # Priority 4: Personalized Baselines (using earliest available log)
+        
         baseline = {
             'hr': hr_data[0] if hr_data else 75,
             'rr': rr_data[0] if rr_data else 16,
@@ -152,7 +152,7 @@ def get_model_metrics():
 async def websocket_simulate(websocket: WebSocket, patient_id: str):
     await websocket.accept()
     
-    # Priority 1, 2, 17: Build a real Digital Twin Service!
+    
     initial_vitals = {
         'hr': 75,
         'rr': 16,
