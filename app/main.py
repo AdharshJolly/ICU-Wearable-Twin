@@ -11,7 +11,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="ICU Wearable Twin API",
-        description="
+        description="High-Fidelity AI Patient Digital Twin API",
         version="2.0.0"
     )
 
@@ -29,3 +29,7 @@ def create_app() -> FastAPI:
     return app
 
 app = create_app()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
