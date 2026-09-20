@@ -34,23 +34,22 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
       phase += dt / beatDuration;
       if (phase > 1) phase -= 1;
 
-      // 1. ECG Waveform (Green, Top Track: 110 to 200)
-      let ecg = 135; // Baseline
+      // 1. ECG Waveform (Green) - Centered directly on the actual HR value
+      let ecg = m.hr; 
       if (phase > 0.1 && phase < 0.15) ecg += Math.sin((phase - 0.1) * 20 * Math.PI) * 12; // P wave
       else if (phase > 0.3 && phase < 0.32) ecg -= 20; // Q wave
-      else if (phase >= 0.32 && phase < 0.35) ecg += 60; // R spike
+      else if (phase >= 0.32 && phase < 0.35) ecg += 50; // R spike
       else if (phase >= 0.35 && phase < 0.38) ecg -= 25; // S wave
-      else if (phase > 0.55 && phase < 0.7) ecg += Math.sin((phase - 0.55) * 6.66 * Math.PI) * 18; // T wave
-      ecg += (Math.random() - 0.5) * 4; // Sensor noise
+      else if (phase > 0.55 && phase < 0.7) ecg += Math.sin((phase - 0.55) * 6.66 * Math.PI) * 15; // T wave
 
-      // 2. SpO2 Plethysmograph (Cyan, Bottom Track: 10 to 90)
-      let spo2P = (phase + 0.4) % 1.0; // Delayed from ECG
+      // 2. SpO2 Plethysmograph (Cyan) - Centered directly on actual SpO2 value
+      let spo2P = (phase + 0.4) % 1.0; 
       let plethVal = Math.sin(spo2P * Math.PI);
       if (spo2P > 0.4 && spo2P < 0.6) {
          plethVal -= 0.15 * Math.sin((spo2P - 0.4) * 5 * Math.PI); // Dicrotic notch
       }
       if (plethVal < 0) plethVal = 0;
-      let spo2Wave = 20 + (plethVal * 55) + (Math.random() - 0.5) * 2;
+      let spo2Wave = (m.spo2 - 5) + (plethVal * 15);
 
       hrSeries.current.append(now, ecg);
       spo2Series.current.append(now, spo2Wave);
@@ -63,7 +62,7 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
     if (canvasRef.current) {
       if (!chartRef.current) {
         chartRef.current = new SmoothieChart({
-          millisPerPixel: 12, // Faster scrolling for ECG
+          millisPerPixel: 15, 
           grid: {
             strokeStyle: '#1e293b',
             fillStyle: '#000000', 
@@ -71,9 +70,9 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
             millisPerLine: 1000,
             verticalSections: 8
           },
-          labels: { disabled: true },
-          minValue: 0,
-          maxValue: 210,
+          labels: { fillStyle: '#64748b', fontSize: 12, precision: 0 },
+          minValue: 40,
+          maxValue: 160,
           responsive: true,
         });
   
@@ -101,7 +100,7 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
       <div className="flex justify-between items-center mb-2 px-2 absolute top-4 left-4 right-4 z-10 pointer-events-none">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 bg-black/50 p-2 rounded backdrop-blur-sm border border-slate-800">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
-          CENTRAL TELEMETRY (ECG II & PLETH)
+          CENTRAL TELEMETRY (HR & SpO2)
         </h2>
       </div>
       <div className="flex-1 w-full relative rounded-lg overflow-hidden bg-black border border-slate-800/80 shadow-inner">

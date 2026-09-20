@@ -69,28 +69,26 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
       respPhase += dt / (60000 / rr);
       if (respPhase > 1) respPhase -= 1;
 
-      // ECG for HR card (min 40 max 160)
-      let ecg = 80; 
+      // ECG for HR card
+      let ecg = m.hr; 
       if (cardiacPhase > 0.1 && cardiacPhase < 0.15) ecg += Math.sin((cardiacPhase - 0.1) * 20 * Math.PI) * 10;
       else if (cardiacPhase > 0.3 && cardiacPhase < 0.32) ecg -= 15;
-      else if (cardiacPhase >= 0.32 && cardiacPhase < 0.35) ecg += 50;
+      else if (cardiacPhase >= 0.32 && cardiacPhase < 0.35) ecg += 40;
       else if (cardiacPhase >= 0.35 && cardiacPhase < 0.38) ecg -= 20;
-      else if (cardiacPhase > 0.55 && cardiacPhase < 0.7) ecg += Math.sin((cardiacPhase - 0.55) * 6.66 * Math.PI) * 15;
-      ecg += (Math.random() - 0.5) * 3;
+      else if (cardiacPhase > 0.55 && cardiacPhase < 0.7) ecg += Math.sin((cardiacPhase - 0.55) * 6.66 * Math.PI) * 10;
 
-      // Pleth for SpO2 card (min 75 max 100)
+      // Pleth for SpO2 card
       let spo2P = (cardiacPhase + 0.4) % 1.0;
       let plethVal = Math.sin(spo2P * Math.PI);
       if (spo2P > 0.4 && spo2P < 0.6) plethVal -= 0.15 * Math.sin((spo2P - 0.4) * 5 * Math.PI);
       if (plethVal < 0) plethVal = 0;
-      let spo2Wave = 78 + (plethVal * 20) + (Math.random() - 0.5) * 1;
+      let spo2Wave = (m.spo2 - 5) + (plethVal * 15);
 
-      // Capnography for RR card (min 5 max 40)
+      // Capnography for RR card
       let rrVal = Math.sin(respPhase * Math.PI);
       if (rrVal < 0) rrVal = 0;
-      // Square off the top a bit for realistic capnography waveform
       rrVal = Math.min(rrVal * 1.5, 1.0); 
-      let rrWave = 10 + (rrVal * 25) + (Math.random() - 0.5) * 1;
+      let rrWave = (m.rr - 5) + (rrVal * 15);
 
       hrSeriesSide.current.append(now, ecg);
       spo2SeriesSide.current.append(now, spo2Wave);
