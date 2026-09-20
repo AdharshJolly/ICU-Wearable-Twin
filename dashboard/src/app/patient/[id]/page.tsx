@@ -466,20 +466,20 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         </div>
 
         {/* Right Column: Explainability & Logs (3 cols) */}
-        <div className="col-span-3 flex flex-col gap-4 min-h-0">
-                    {/* AI Explainability */}
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 flex-1 flex flex-col min-h-0">
-              <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex justify-between items-center">
-                <span>Explainability Engine</span>
-                <button 
-                  onClick={requestConsult}
-                  disabled={isConsulting}
-                  className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center font-bold transition disabled:opacity-50"
-                >
-                  {isConsulting ? <RefreshCw size={14} className="animate-spin mr-2" /> : <Users size={14} className="mr-2" />}
-                  {isConsulting ? "CONSULTING..." : "BOARD CONSULT"}
-                </button>
-              </h3>
+        <div className="col-span-3 overflow-y-auto pr-1 pb-4">
+          {/* AI Explainability */}
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 flex flex-col h-max min-h-full">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex justify-between items-center">
+              <span>Explainability Engine</span>
+              <button 
+                onClick={requestConsult}
+                disabled={isConsulting}
+                className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center font-bold transition disabled:opacity-50"
+              >
+                {isConsulting ? <RefreshCw size={14} className="animate-spin mr-2" /> : <Users size={14} className="mr-2" />}
+                {isConsulting ? "CONSULTING..." : "BOARD CONSULT"}
+              </button>
+            </h3>
             
             {/* LLM Clinical Note */}
             <div className="mb-4 bg-slate-950 p-4 rounded-xl border border-slate-800 relative flex-none">
@@ -490,21 +490,21 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             </div>
             
             {/* True Digital Twin Visualization */}
-            <div className="flex-1 min-h-[300px] mb-4">
+            <div className="min-h-[300px] mb-4">
               <DigitalTwinPanel snapshot={twinSnapshot} trajectories={counterfactualData} />
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1">
                 {reasons.length > 0 ? (
                     <ul className="space-y-2">
                         {reasons.map((r, i) => (
                             <li key={i} className="text-xs text-red-300 bg-red-950/40 p-2 rounded border border-red-900/50">
-                                • {r}
+                                  {r}
                             </li>
                         ))}
                     </ul>
                 ) : (
-                    <div className="h-full flex items-center justify-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/50">
+                    <div className="h-full min-h-[100px] flex items-center justify-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/50">
                         <div className="text-center p-4 text-slate-500 text-sm">
                             <Activity className="mx-auto mb-2 opacity-50" size={24} />
                             No structural anomalies.
