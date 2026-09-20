@@ -3,6 +3,8 @@ from datetime import datetime
 from app.services.risk_service import calculate_risk_forecast
 from digital_twin.database import SessionLocal, TelemetryLog, TwinSnapshot
 
+from app.services.pharmacokinetics import apply_pharmacokinetics, decay_medications
+
 class PatientDigitalTwin:
     def __init__(self, patient_id: str, baseline: dict):
         self.patient_id = patient_id
@@ -22,48 +24,23 @@ class PatientDigitalTwin:
             self.active_medications["IV Fluids"] = 100
         elif action == "administer_o2":
             self.active_medications["Supplemental O2"] = 100
-            
-    def _decay_medications(self):
-        decay_rates = {
-            "Beta Blockers": 5,    # decays 5% per tick
-            "IV Fluids": 8,        # decays 8% per tick
-            "Supplemental O2": 10  # decays 10% per tick
-        }
-        expired = []
-        for med, level in self.active_medications.items():
-            rate = decay_rates.get(med, 5)
-            self.active_medications[med] = max(0, level - rate)
-            if self.active_medications[med] == 0:
-                expired.append(med)
-        for med in expired:
-            del self.active_medications[med]
 
     def ingest(self, vitals: dict):
         """
         Ingest a new set of vitals, apply dynamic effects, update memory, calculate risk, 
         and run the state machine.
         """
-        self._decay_medications()
+        # 1. Decay Medications
+        self.active_medications = decay_medications(self.active_medications)
         
-        # Apply pharmacological effects to vitals based on active medications
-        if "Beta Blockers" in self.active_medications:
-            # Lowers HR and BP
-            intensity = self.active_medications["Beta Blockers"] / 100.0
-            vitals["hr"] = max(40, vitals["hr"] - (15 * intensity))
-            vitals["sbp"] = max(80, vitals["sbp"] - (20 * intensity))
-            vitals["dbp"] = max(50, vitals["dbp"] - (10 * intensity))
-            
-        if "IV Fluids" in self.active_medications:
-            # Raises BP, slightly lowers HR
-            intensity = self.active_medications["IV Fluids"] / 100.0
-            vitals["sbp"] = min(180, vitals["sbp"] + (25 * intensity))
-            vitals["dbp"] = min(110, vitals["dbp"] + (15 * intensity))
-            vitals["hr"] = max(50, vitals["hr"] - (5 * intensity))
-            
-        if "Supplemental O2" in self.active_medications:
-            # Raises SpO2
-            intensity = self.active_medications["Supplemental O2"] / 100.0
-            vitals["spo2"] = min(100, vitals["spo2"] + (8 * intensity))
+        # 2. Apply pharmacological effects to vitals
+        vitals = apply_pharmacokinetics(vitals, self.active_medications)
+
+        # 3. Baseline Drift (EMA)
+        # Alpha of 0.01 means it slowly adapts to the new normal over time
+        for k in ['hr', 'rr', 'spo2', 'sbp', 'dbp']:
+            if k in vitals:
+                self.baseline[k] = (0.99 * self.baseline.get(k, vitals[k])) + (0.01 * vitals[k])
 
         # Update rolling memory
         for k in ['hr', 'rr', 'spo2', 'sbp', 'dbp']:
@@ -170,7 +147,8 @@ class PatientDigitalTwin:
                 state=snapshot['state'],
                 confidence=snapshot['confidence'],
                 top_factors=json.dumps(snapshot['top_factors'], default=numpy_converter),
-                baseline=json.dumps(self.baseline, default=numpy_converter)
+                baseline=json.dumps(self.baseline, default=numpy_converter),
+                model_version="ensemble-fallback-v1.0"
             )
             db.add(twin_snap)
             db.commit()

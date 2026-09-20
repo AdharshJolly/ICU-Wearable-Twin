@@ -51,6 +51,7 @@ class TwinSnapshot(Base):
     # Meta (JSON stringified)
     top_factors = Column(String) 
     baseline = Column(String)
+    model_version = Column(String, default="ensemble-fallback-v1.0")
 
 # Create tables
 Base.metadata.create_all(bind=engine)
