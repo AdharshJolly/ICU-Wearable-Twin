@@ -1,8 +1,8 @@
 def apply_pharmacokinetics(vitals: dict, active_medications: dict) -> dict:
-    "\"\"
+    """
     Applies deterministic physiological effects based on active medications.
     This serves as the single source of truth for both live twin ingest and counterfactual simulation.
-    "\"\"
+    """
     v = dict(vitals)
     
     if "Beta Blockers" in active_medications:

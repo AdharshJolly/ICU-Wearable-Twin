@@ -1,4 +1,4 @@
-"\"\"
+"""
 COUNTERFACTUAL ENGINE
 =====================
 Given the patient's current vital signs and simulator state,
@@ -8,7 +8,7 @@ scenario.
 Crucially, this uses the EXACT SAME physiological model as the 
 live twin (app.services.pharmacokinetics) to ensure strict
 consistency between what-if projections and live interventions.
-"\"\"
+"""
 
 import copy
 import numpy as np
