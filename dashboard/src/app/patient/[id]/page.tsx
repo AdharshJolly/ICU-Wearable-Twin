@@ -157,10 +157,10 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 flex-1 min-h-0 xl:overflow-hidden">
         
-        {/* LEFT COLUMN: Vitals & Twin (No Scroll) */}
+        {/* LEFT COLUMN: Vitals (No Scroll) */}
         <div className="xl:col-span-8 flex flex-col gap-3 h-full xl:overflow-hidden pr-0 xl:pr-2 pb-0">
           
-          <div className="flex-[1.2] min-h-[120px]">
+          <div className="flex-1 min-h-[250px]">
             <MainMonitor metrics={metrics} isRunning={isRunning} />
           </div>
 
@@ -182,13 +182,9 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             </div>
           </div>
 
-          <div className="flex-[2] min-h-0">
-             <DigitalTwinPanel snapshot={twinSnapshot} trajectories={null} />
-          </div>
-
         </div>
 
-        {/* RIGHT COLUMN: Interventions & AI Consult */}
+        {/* RIGHT COLUMN: Interventions, Digital Twin, & AI Consult */}
         <div className="xl:col-span-4 flex flex-col gap-4 xl:overflow-y-auto custom-scrollbar pr-0 xl:pr-2 pb-4">
           
           {/* Active Medications Widget */}
@@ -231,8 +227,13 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             </div>
           </div>
 
+          {/* Digital Twin Panel */}
+          <div className="flex-shrink-0 min-h-[350px] flex flex-col">
+            <DigitalTwinPanel snapshot={twinSnapshot} trajectories={null} />
+          </div>
+
           {/* AI Consult Agent */}
-          <div className="clinical-panel p-0 overflow-hidden flex flex-col flex-1 min-h-[350px]">
+          <div className="clinical-panel p-0 overflow-hidden flex flex-col flex-shrink-0 min-h-[350px]">
             <div className="p-3 border-b border-slate-800/60 bg-slate-900/30 flex justify-between items-center">
                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                  <User className="w-4 h-4 text-purple-400" aria-hidden="true" /> Board Consult
