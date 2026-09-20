@@ -50,24 +50,24 @@ export default function ICUStripCard({ title, value, unit, color, series, minSca
 
   return (
     <div 
-      className="flex h-24 overflow-hidden clinical-panel group"
+      className="flex h-20 overflow-hidden clinical-panel group"
       role="region"
       aria-label={`${title} telemetry: ${value.toFixed(1)} ${unit}`}
     >
       {/* Waveform area (Left) */}
       <div className="flex-[2] relative bg-[#020617] rounded-l-xl" aria-hidden="true">
         <canvas ref={canvasRef} className="w-full h-full" style={{ display: 'block' }}></canvas>
-        <div className={`absolute top-2 left-3 ${style.text} text-xs font-bold tracking-widest opacity-80`}>
+        <div className={`absolute top-1 left-2 ${style.text} text-[10px] font-bold tracking-widest opacity-80`}>
           {title}
         </div>
       </div>
       
       {/* Numbers area (Right) */}
-      <div className={`flex-1 flex flex-col justify-center items-end p-4 border-l border-slate-800/50 rounded-r-xl ${style.bg}`} aria-hidden="true">
-        <div className={`text-4xl clinical-data-value ${style.text}`}>
+      <div className={`flex-[1.2] flex flex-col justify-center items-end p-3 border-l border-slate-800/50 rounded-r-xl ${style.bg}`} aria-hidden="true">
+        <div className={`text-3xl clinical-data-value ${style.text}`}>
           {value.toFixed(1)}
         </div>
-        <div className={`text-xs font-bold uppercase mt-1 ${style.text} opacity-70 tracking-widest`}>
+        <div className={`text-[10px] font-bold uppercase ${style.text} opacity-70 tracking-widest`}>
           {unit}
         </div>
       </div>

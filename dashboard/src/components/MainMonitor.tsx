@@ -68,7 +68,7 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
   }, [isRunning]);
 
   return (
-    <div className="clinical-panel p-4 flex flex-col mb-4 h-64 relative border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.05)]" aria-label="Main Central Monitor" role="region">
+    <div className="clinical-panel p-3 flex flex-col h-full w-full relative border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.05)]" aria-label="Main Central Monitor" role="region">
       <div className="flex justify-between items-center mb-2 px-2 absolute top-4 left-4 right-4 z-10 pointer-events-none">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 bg-black/50 p-2 rounded backdrop-blur-sm border border-slate-800">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
