@@ -20,11 +20,37 @@ class TelemetryLog(Base):
     rr = Column(Float)
     temp = Column(Float)
     spo2 = Column(Float)
+    sbp = Column(Float, nullable=True)
+    dbp = Column(Float, nullable=True)
     
     risk_state = Column(String)
     abnormal_reasons = Column(String) # JSON stringified
     llm_summary = Column(String)
     intervention = Column(String, nullable=True)
+
+class TwinSnapshot(Base):
+    __tablename__ = "twin_snapshots"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(String, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Physiology
+    hr = Column(Float)
+    rr = Column(Float)
+    spo2 = Column(Float)
+    sbp = Column(Float)
+    dbp = Column(Float)
+    temp = Column(Float)
+    
+    # Model Outputs
+    risk_probability = Column(Float)
+    state = Column(String)
+    confidence = Column(String)
+    
+    # Meta (JSON stringified)
+    top_factors = Column(String) 
+    baseline = Column(String)
 
 # Create tables
 Base.metadata.create_all(bind=engine)

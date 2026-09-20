@@ -8,13 +8,14 @@ from datetime import datetime
 
 # Import digital_twin tools
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-from digital_twin.database import SessionLocal, TelemetryLog
+from digital_twin.database import SessionLocal, TelemetryLog, TwinSnapshot
 from digital_twin.multi_agent import MultiAgentBoard
 from digital_twin.counterfactual_engine import CounterfactualEngine
 from digital_twin.llm_agent import ClinicalLLMAgent
 from digital_twin.deterioration_simulator import DeteriorationSimulator
 from app.services.risk_service import calculate_risk_forecast
 from app.schemas.schemas import CounterfactualRequest
+from app.services.digital_twin_service import digital_twin_service
 
 api_router = APIRouter()
 multi_agent_board = MultiAgentBoard()
@@ -61,7 +62,9 @@ def get_patient_history(patient_id: str):
                 "hr": log.hr,
                 "rr": log.rr,
                 "spo2": log.spo2,
-                "temp": log.temp
+                "temp": log.temp,
+                "sbp": log.sbp,
+                "dbp": log.dbp
             } for log in logs
         ]
         history.reverse()
@@ -83,9 +86,9 @@ async def get_risk_forecast_api(patient_id: str):
         rr_data = [log.rr for log in logs if log.rr is not None]
         temp_data = [log.temp for log in logs if log.temp is not None]
         
-        # Mock BP based on HR
-        sys_data = [120 + (hr - 75)*0.5 for hr in hr_data]
-        dia_data = [80 + (hr - 75)*0.3 for hr in hr_data]
+        # Priority 19: Use real BP from database instead of fake generation
+        sys_data = [log.sbp if log.sbp else 120 for log in logs]
+        dia_data = [log.dbp if log.dbp else 80 for log in logs]
         
         # Priority 4: Personalized Baselines (using earliest available log)
         baseline = {
@@ -160,8 +163,15 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
     simulator = DeteriorationSimulator(patient_data)
     scenario_ticks = simulator.generate_scenario()
     
-    # Priority 14: Dynamic State Machine (Memory Buffer)
-    history_hr, history_rr, history_spo2, history_sbp, history_dbp = [], [], [], [], []
+    # Priority 1, 2, 17: Build a real Digital Twin Service!
+    initial_vitals = {
+        'hr': patient_data['RestingHR'],
+        'rr': patient_data['RespRate'],
+        'spo2': patient_data['SpO2'],
+        'sbp': patient_data['SystolicBP'],
+        'dbp': patient_data['DiastolicBP']
+    }
+    twin = digital_twin_service.get_or_create_twin(patient_id, initial_vitals)
     
     try:
         for i, reading in enumerate(scenario_ticks):
@@ -174,95 +184,44 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
                 pass
             
             # Extract current vitals
-            hr = float(reading.get("RestingHR", 75) + (i % 2))
-            rr = float(reading.get("RespRate", 16) + (i % 2))
-            temp = float(reading.get("BodyTemp_C", 36.8))
-            spo2 = float(reading.get("SpO2", 98) - (i % 2))
-            sbp = float(reading.get("SystolicBP", 120))
-            dbp = float(reading.get("DiastolicBP", 80))
-            
-            # Update rolling memory
-            history_hr.append(hr)
-            history_rr.append(rr)
-            history_spo2.append(spo2)
-            history_sbp.append(sbp)
-            history_dbp.append(dbp)
-            
-            # Keep max 16 items for the temporal sequence
-            if len(history_hr) > 16:
-                history_hr.pop(0)
-                history_rr.pop(0)
-                history_spo2.pop(0)
-                history_sbp.pop(0)
-                history_dbp.pop(0)
-                
-            # Default state
-            risk_state = "STABLE"
-            reasons = ["Normal Vitals"]
-            
-            # Priority 14 & 4: Dynamic Organic State Transitions with Personalized Baselines
-            if len(history_hr) >= 2:
-                # Use the hardcoded initial patient_data as their individual baseline
-                patient_baseline = {
-                    'hr': patient_data['RestingHR'],
-                    'rr': patient_data['RespRate'],
-                    'spo2': patient_data['SpO2'],
-                    'sbp': patient_data['SystolicBP'],
-                    'dbp': patient_data['DiastolicBP']
-                }
-                
-                forecast = calculate_risk_forecast(
-                    history_hr, history_rr, history_spo2, history_sbp, history_dbp,
-                    baseline=patient_baseline
-                )
-                
-                if "error" not in forecast:
-                    risk = forecast["risk_probability"]
-                    
-                    # Transition thresholds
-                    if risk < 30:
-                        risk_state = "STABLE"
-                        reasons = ["Vitals within normal limits"]
-                    elif risk < 50:
-                        risk_state = "WATCH"
-                    elif risk < 70:
-                        risk_state = "ELEVATED"
-                    elif risk < 85:
-                        risk_state = "HIGH_RISK"
-                    else:
-                        risk_state = "CRITICAL"
-                        
-                    # Extract dynamic reasons from SHAP factors!
-                    if risk >= 30 and forecast.get("top_factors"):
-                        reasons = [f["description"] for f in forecast["top_factors"][:2]]
-                
-            payload = {
-                "time": datetime.now().strftime("%H:%M:%S"),
-                "hr": hr,
-                "rr": rr,
-                "temp": temp,
-                "spo2": spo2,
-                "sbp": sbp,
-                "dbp": dbp,
-                "risk_state": risk_state,
-                "reasons": reasons,
-                "active_medications": reading.get("active_medications", {})
+            vitals = {
+                'hr': float(reading.get("RestingHR", 75) + (i % 2)),
+                'rr': float(reading.get("RespRate", 16) + (i % 2)),
+                'temp': float(reading.get("BodyTemp_C", 36.8)),
+                'spo2': float(reading.get("SpO2", 98) - (i % 2)),
+                'sbp': float(reading.get("SystolicBP", 120)),
+                'dbp': float(reading.get("DiastolicBP", 80))
             }
             
-            payload["llm_summary"] = await llm_agent.generate_summary(risk_state, reasons, payload)
+            # The Twin orchestrates risk forecasting, memory, hysteresis, and persistence
+            snapshot = twin.ingest(vitals, active_medications=reading.get("active_medications", {}))
             
+            # Prepare payload for frontend
+            payload = {
+                "time": snapshot["timestamp"].strftime("%H:%M:%S"),
+                "hr": snapshot["hr"],
+                "rr": snapshot["rr"],
+                "temp": snapshot["temp"],
+                "spo2": snapshot["spo2"],
+                "sbp": snapshot["sbp"],
+                "dbp": snapshot["dbp"],
+                "risk_state": snapshot["state"],
+                "reasons": snapshot["reasons"],
+                "active_medications": snapshot["active_medications"]
+            }
+            
+            # Fire LLM in background
+            payload["llm_summary"] = await llm_agent.generate_summary(snapshot["state"], snapshot["reasons"], payload)
+            
+            # Update the latest log with LLM summary (as it wasn't saved in ingest)
             db = SessionLocal()
             try:
-                log = TelemetryLog(
-                    patient_id=patient_id,
-                    hr=payload["hr"], rr=payload["rr"],
-                    spo2=payload["spo2"], temp=payload["temp"],
-                    risk_state=risk_state, llm_summary=payload["llm_summary"]
-                )
-                db.add(log)
-                db.commit()
+                latest_log = db.query(TelemetryLog).filter(TelemetryLog.patient_id == patient_id).order_by(TelemetryLog.timestamp.desc()).first()
+                if latest_log:
+                    latest_log.llm_summary = payload["llm_summary"]
+                    db.commit()
             except Exception as e:
-                print(f"DB Error: {e}")
+                pass
             finally:
                 db.close()
                 
