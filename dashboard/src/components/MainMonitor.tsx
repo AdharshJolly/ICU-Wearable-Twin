@@ -18,14 +18,44 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
     metricsRef.current = metrics;
   }, [metrics]);
 
-  // High-frequency append
+  // High-frequency authentic waveform generation
   useEffect(() => {
+    let lastTime = new Date().getTime();
+    let phase = 0;
+    
     const interval = setInterval(() => {
       const now = new Date().getTime();
+      const dt = now - lastTime;
+      lastTime = now;
       const m = metricsRef.current;
-      hrSeries.current.append(now, m.hr);
-      spo2Series.current.append(now, m.spo2);
-    }, 250);
+      
+      const hr = m.hr || 75;
+      const beatDuration = 60000 / hr;
+      phase += dt / beatDuration;
+      if (phase > 1) phase -= 1;
+
+      // 1. ECG Waveform (Green, Top Track: 110 to 200)
+      let ecg = 135; // Baseline
+      if (phase > 0.1 && phase < 0.15) ecg += Math.sin((phase - 0.1) * 20 * Math.PI) * 12; // P wave
+      else if (phase > 0.3 && phase < 0.32) ecg -= 20; // Q wave
+      else if (phase >= 0.32 && phase < 0.35) ecg += 60; // R spike
+      else if (phase >= 0.35 && phase < 0.38) ecg -= 25; // S wave
+      else if (phase > 0.55 && phase < 0.7) ecg += Math.sin((phase - 0.55) * 6.66 * Math.PI) * 18; // T wave
+      ecg += (Math.random() - 0.5) * 4; // Sensor noise
+
+      // 2. SpO2 Plethysmograph (Cyan, Bottom Track: 10 to 90)
+      let spo2P = (phase + 0.4) % 1.0; // Delayed from ECG
+      let plethVal = Math.sin(spo2P * Math.PI);
+      if (spo2P > 0.4 && spo2P < 0.6) {
+         plethVal -= 0.15 * Math.sin((spo2P - 0.4) * 5 * Math.PI); // Dicrotic notch
+      }
+      if (plethVal < 0) plethVal = 0;
+      let spo2Wave = 20 + (plethVal * 55) + (Math.random() - 0.5) * 2;
+
+      hrSeries.current.append(now, ecg);
+      spo2Series.current.append(now, spo2Wave);
+    }, 30); // ~33 fps
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -33,18 +63,17 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
     if (canvasRef.current) {
       if (!chartRef.current) {
         chartRef.current = new SmoothieChart({
-          millisPerPixel: 20, 
+          millisPerPixel: 12, // Faster scrolling for ECG
           grid: {
             strokeStyle: '#1e293b',
             fillStyle: '#000000', 
             lineWidth: 1,
-            millisPerLine: 2000,
-            verticalSections: 6
+            millisPerLine: 1000,
+            verticalSections: 8
           },
-          labels: { fillStyle: '#64748b', fontSize: 12, precision: 0 },
-          timestampFormatter: SmoothieChart.timeFormatter,
-          minValue: 30,
-          maxValue: 170,
+          labels: { disabled: true },
+          minValue: 0,
+          maxValue: 210,
           responsive: true,
         });
   
@@ -72,10 +101,10 @@ export default function MainMonitor({ metrics, isRunning }: MainMonitorProps) {
       <div className="flex justify-between items-center mb-2 px-2 absolute top-4 left-4 right-4 z-10 pointer-events-none">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 bg-black/50 p-2 rounded backdrop-blur-sm border border-slate-800">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
-          CENTRAL TELEMETRY (HR & SpO2)
+          CENTRAL TELEMETRY (ECG II & PLETH)
         </h2>
       </div>
-      <div className="flex-1 w-full relative rounded-lg overflow-hidden bg-black border border-slate-800/80">
+      <div className="flex-1 w-full relative rounded-lg overflow-hidden bg-black border border-slate-800/80 shadow-inner">
         <canvas ref={canvasRef} className="w-full h-full block"></canvas>
       </div>
     </div>
