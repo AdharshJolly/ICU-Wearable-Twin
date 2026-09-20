@@ -34,6 +34,7 @@ class ModelManager:
         self.lstm_model = None
         self.icu_scaler = None
         self.lstm_scaler = None
+        self.ensemble_meta_model = None
 
         self._load_models()
 
@@ -82,5 +83,12 @@ class ModelManager:
                 self.lstm_model.eval()
         except Exception as e:
             print(f"LSTM load warning: {e}")
+            
+        try:
+            meta_path = os.path.join(base_dir, "ensemble_meta.pkl")
+            if os.path.exists(meta_path):
+                self.ensemble_meta_model = joblib.load(meta_path)
+        except Exception as e:
+            print(f"Meta Learner load error: {e}")
 
 model_manager = ModelManager()

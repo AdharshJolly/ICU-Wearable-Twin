@@ -52,9 +52,9 @@ def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, bas
     else:
         X_scaled = X.values
         
-    prob = float(model_manager.predictive_model.predict_proba(X_scaled)[0, 1])
+    xgb_prob = float(model_manager.predictive_model.predict_proba(X_scaled)[0, 1]) * 100.0
     
-    lstm_prob = prob
+    lstm_prob = xgb_prob
     if model_manager.lstm_model is not None and model_manager.lstm_scaler is not None and len(hr_data) >= 10:
         seq_raw = []
         for i in range(-10, 0):
@@ -63,11 +63,20 @@ def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, bas
         seq_scaled = model_manager.lstm_scaler.transform(np.array(seq_raw))
         x_tensor = torch.tensor([seq_scaled], dtype=torch.float32)
         with torch.no_grad():
-            lstm_prob = float(model_manager.lstm_model(x_tensor).item())
-            
-    ensembled_prob = (lstm_prob * 0.6) + (prob * 0.4)
+            lstm_prob = float(model_manager.lstm_model(x_tensor).item()) * 100.0
     
-    disagreement = abs(lstm_prob - prob)
+    # Priority 9: Stacking Meta-Learner for Ensemble Weights
+    if model_manager.ensemble_meta_model is not None:
+        # Scale to 0-1 for the meta-learner input
+        x_meta = np.array([[xgb_prob / 100.0, lstm_prob / 100.0]])
+        # Get stacked probability
+        ensembled_prob = float(model_manager.ensemble_meta_model.predict_proba(x_meta)[0, 1]) * 100.0
+        # Compute disagreement for UI alerts
+        disagreement = abs(lstm_prob - xgb_prob) / 100.0
+    else:
+        # Fallback to hardcoded if meta-learner is missing
+        ensembled_prob = (lstm_prob * 0.6) + (xgb_prob * 0.4)
+        disagreement = abs(lstm_prob - xgb_prob) / 100.0
     if disagreement > 0.3:
         confidence = "LOW"
         alert_msg = "High model disagreement detected. Manual review recommended."
@@ -95,9 +104,9 @@ def calculate_risk_forecast(hr_data, rr_data, spo2_data, sys_data, dia_data, bas
         top_factors = []
         
     return {
-        "risk_probability": round(ensembled_prob * 100, 1),
-        "xgboost_prob": round(prob * 100, 1),
-        "lstm_prob": round(lstm_prob * 100, 1),
+        "risk_probability": round(ensembled_prob, 1),
+        "xgboost_prob": round(xgb_prob, 1),
+        "lstm_prob": round(lstm_prob, 1),
         "confidence": confidence,
         "uncertainty_alert": alert_msg,
         "disagreement_score": round(disagreement * 100, 1),

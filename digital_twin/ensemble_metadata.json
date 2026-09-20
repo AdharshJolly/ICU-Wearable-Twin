@@ -1,0 +1,8 @@
+{
+    "model_version": "ensemble_v3_stacked",
+    "trained_at": "2026-09-20",
+    "xgb_weight": 0.42239794592262586,
+    "lstm_weight": 0.5776020540773742,
+    "calibration_brier_score": 0.014153397598821083,
+    "meta_model_type": "LogisticRegression"
+}
