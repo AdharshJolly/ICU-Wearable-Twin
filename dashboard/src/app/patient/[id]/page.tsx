@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef, use } from 'react';
-import { Activity, Thermometer, Wind, HeartPulse, Play, Square, User, Users, AlertTriangle, Clock, Zap, Heart, History, RefreshCw } from 'lucide-react';
+import { Activity, Thermometer, Wind, HeartPulse, Play, Square, User, Users, AlertTriangle, Clock, Zap, Heart, History, RefreshCw, FileText, ChevronRight } from 'lucide-react';
 // @ts-ignore
 import { SmoothieChart, TimeSeries } from 'smoothie';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import DigitalTwinPanel from '@/components/DigitalTwinPanel';
+import PatientHeader from '@/components/PatientHeader';
+import ICUStripCard from '@/components/ICUStripCard';
 
 export default function Dashboard({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -21,134 +22,31 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     physician: 'Dr. Sarah Chen'
   });
 
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) {
-          setPatientData({
-            id: data.id,
-            name: `Patient ${data.id}`, // Placeholder
-            age: data.age,
-            gender: data.gender,
-            physician: data.physician
-          });
-        }
-      })
-      .catch(err => console.error("Error fetching patient", err));
-  }, [patientId]);
+  const [metrics, setMetrics] = useState({ hr: 75, rr: 16, temp: 36.8, spo2: 98, sbp: 120, dbp: 80 });
+  const metricsRef = useRef(metrics);
+  useEffect(() => { metricsRef.current = metrics; }, [metrics]);
+
   const [reasons, setReasons] = useState<string[]>([]);
   const [logs, setLogs] = useState<{time: string, type: string, message: string}[]>([]);
   
-  // Refs
   const ws = useRef<WebSocket | null>(null);
-  const mainCanvasRef = useRef<HTMLCanvasElement | null>(null);
   
   // Smoothie chart time series
   const hrSeriesSide = useRef<TimeSeries>(new TimeSeries());
   const spo2SeriesSide = useRef<TimeSeries>(new TimeSeries());
   const rrSeriesSide = useRef<TimeSeries>(new TimeSeries());
   const tempSeriesSide = useRef<TimeSeries>(new TimeSeries());
+  
   const [viewMode, setViewMode] = useState<'live' | 'history'>('live');
-  const [historyData, setHistoryData] = useState<any[]>([]);
-  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [consultData, setConsultData] = useState<any>(null);
   const [isConsulting, setIsConsulting] = useState(false);
-  const [counterfactualData, setCounterfactualData] = useState<any>(null);
-  const [showCounterfactualModal, setShowCounterfactualModal] = useState<boolean>(false);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [riskForecast, setRiskForecast] = useState<any>(null);
-  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [twinSnapshot, setTwinSnapshot] = useState<any>(null);
   const [activeMedications, setActiveMedications] = useState<Record<string, number>>({});
+  const riskStateRef = useRef(riskState);
 
-  const fetchHistory = async () => {
-    setIsFetchingHistory(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/history`);
-      const data = await res.json();
-      setHistoryData(data.history || []);
-    } catch (err) {
-      console.error(err);
-    }
-    setIsFetchingHistory(false);
-  };
+  useEffect(() => { riskStateRef.current = riskState; }, [riskState]);
 
-  const runCounterfactual = async () => {
-    setIsSimulating(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/counterfactual`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ current_vitals: metrics, state: riskState })
-      });
-      const data = await res.json();
-      setCounterfactualData(data);
-      setShowCounterfactualModal(true);
-    } catch(err) {
-      console.error(err);
-    }
-    setIsSimulating(false);
-  };
-
-  const requestConsult = async () => {
-    setIsConsulting(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/consult`, {
-        method: 'POST'
-      });
-      const data = await res.json();
-      setConsultData(data);
-    } catch (err) {
-      console.error(err);
-    }
-    setIsConsulting(false);
-  };
-
-  useEffect(() => {
-    if (viewMode === 'history') {
-      setIsRunning(false); // Stop live stream
-      fetchHistory();
-    }
-  }, [viewMode]);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (viewMode === 'live') {
-      const fetchForecast = async () => {
-        try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/risk-forecast`);
-          const data = await res.json();
-          if (!data.error) {
-            setRiskForecast(data);
-          }
-        } catch (err) {}
-      };
-      fetchForecast(); // initial fetch
-      interval = setInterval(fetchForecast, 5000); // every 5s
-    }
-    return () => clearInterval(interval);
-  }, [viewMode, patientId]);
-  
-  const hrSeriesMain = useRef<TimeSeries>(new TimeSeries());
-  const spo2SeriesMain = useRef<TimeSeries>(new TimeSeries());
-  
-  const mainChartRef = useRef<SmoothieChart | null>(null);
-
-  // Initial Data
-  const [metrics, setMetrics] = useState({
-    hr: 75,
-    rr: 16,
-    temp: 36.8,
-    spo2: 98,
-    sbp: 120,
-    dbp: 80
-  });
-  const metricsRef = useRef(metrics);
-  useEffect(() => {
-    metricsRef.current = metrics;
-  }, [metrics]);
-
-  // Smooth out chart by pushing last known value frequently
+  // High-frequency UI update for smoothness (SmoothieChart needs this)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -157,15 +55,65 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
       spo2SeriesSide.current.append(now, m.spo2);
       rrSeriesSide.current.append(now, m.rr);
       tempSeriesSide.current.append(now, m.temp);
-      
-      hrSeriesMain.current.append(now, m.hr);
-      spo2SeriesMain.current.append(now, m.spo2);
     }, 250);
     return () => clearInterval(interval);
   }, []);
 
-  const [llmSummary, setLlmSummary] = useState<string>("");
-  const [twinSnapshot, setTwinSnapshot] = useState<any>(null);
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setPatientData({
+            id: data.id,
+            name: `Patient ${data.id}`,
+            age: data.age,
+            gender: data.gender,
+            physician: data.physician
+          });
+        }
+      });
+  }, [patientId]);
+
+  useEffect(() => {
+    if (isRunning) {
+      ws.current = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace('http', 'ws')}/ws/simulate/${patientId}`); 
+      setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: 'WebSocket Connected. Streaming Patient Data...' }, ...prev]);
+      
+      ws.current.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        setMetrics({
+          hr: data.hr, rr: data.rr, temp: data.temp, spo2: data.spo2, sbp: data.sbp || 120, dbp: data.dbp || 80
+        });
+        
+        if (data.active_medications) setActiveMedications(data.active_medications);
+
+        if (data.risk_state !== riskStateRef.current) {
+            let type = 'info';
+            if (data.risk_state === 'HIGH_RISK') type = 'warning';
+            if (data.risk_state === 'CRITICAL') type = 'critical';
+            setLogs(prev => [{ time: data.time, type, message: `Risk State changed to ${data.risk_state}` }, ...prev]);
+            setRiskState(data.risk_state);
+        }
+        
+        if (data.reasons && data.reasons.length > 0) setReasons(data.reasons);
+        if (data.twin_snapshot) setTwinSnapshot(data.twin_snapshot);
+      };
+
+      ws.current.onclose = () => {
+        setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'warning', message: 'WebSocket Disconnected.' }, ...prev]);
+        setIsRunning(false);
+      };
+      
+      ws.current.onerror = (e) => {
+        console.error("WebSocket Error", e);
+      };
+    } else {
+      if (ws.current) ws.current.close();
+    }
+    return () => { if (ws.current) ws.current.close(); };
+  }, [isRunning, patientId]);
 
   const handleIntervention = (action: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -174,601 +122,177 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     }
   };
 
-  // Initialize and manage Main Smoothie Chart
-  useEffect(() => {
-    if (viewMode === 'live' && mainCanvasRef.current) {
-      if (!mainChartRef.current) {
-        mainChartRef.current = new SmoothieChart({
-          millisPerPixel: 20, 
-          grid: {
-            strokeStyle: '#1e293b',
-            fillStyle: '#000000', 
-            lineWidth: 1,
-            millisPerLine: 2000,
-            verticalSections: 6
-          },
-          labels: { fillStyle: '#64748b', fontSize: 12, precision: 0 },
-          timestampFormatter: SmoothieChart.timeFormatter,
-          minValue: 30,
-          maxValue: 170,
-          responsive: true,
-        });
-  
-        mainChartRef.current.addTimeSeries(hrSeriesMain.current, { 
-          strokeStyle: '#22c55e', 
-          lineWidth: 2 
-        });
-        
-        mainChartRef.current.addTimeSeries(spo2SeriesMain.current, { 
-          strokeStyle: '#06b6d4', 
-          lineWidth: 2 
-        });
-      }
-      
-      mainChartRef.current.streamTo(mainCanvasRef.current, 1000);
+  const requestConsult = async () => {
+    setIsConsulting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/consult`, { method: 'POST' });
+      const data = await res.json();
+      setConsultData(data);
+    } catch(err) {
+      console.error(err);
     }
-    
-    return () => {
-      if (mainChartRef.current && viewMode !== 'live') {
-        mainChartRef.current.stop();
-      }
-    };
-  }, [viewMode]);
-
-  // WebSocket Connection Management
-  const riskStateRef = useRef(riskState);
-  useEffect(() => {
-    riskStateRef.current = riskState;
-  }, [riskState]);
-
-  useEffect(() => {
-    if (isRunning) {
-      ws.current = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace('http', 'ws')}/ws/simulate/${patientId}`); 
-      
-      setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: 'WebSocket Connected. Streaming Patient Data...' }, ...prev]);
-
-      ws.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        setMetrics({
-          hr: data.hr,
-          rr: data.rr,
-          temp: data.temp,
-          spo2: data.spo2,
-          sbp: data.sbp || 120,
-          dbp: data.dbp || 80
-        });
-        
-        if (data.active_medications) {
-          setActiveMedications(data.active_medications);
-        }
-
-        if (data.risk_state !== riskStateRef.current) {
-            let type = 'info';
-            if (data.risk_state === 'HIGH RISK') type = 'warning';
-            if (data.risk_state === 'CRITICAL') type = 'critical';
-            
-            setLogs(prev => [{ 
-              time: data.time, 
-              type, 
-              message: `Risk State changed to ${data.risk_state}` 
-            }, ...prev]);
-            setRiskState(data.risk_state);
-        }
-        
-        if (data.reasons && data.reasons.length > 0) {
-           setReasons(data.reasons);
-        } else {
-           setReasons([]);
-        }
-        
-        if (data.llm_summary) {
-           setLlmSummary(data.llm_summary);
-        }
-        setTwinSnapshot(data);
-      };
-
-      ws.current.onclose = () => {
-        setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: 'WebSocket Disconnected.' }, ...prev]);
-        setIsRunning(false);
-      };
-      
-      ws.current.onerror = (error) => {
-        console.error("WebSocket error", error);
-        setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'critical', message: 'WebSocket Error. Server offline.' }, ...prev]);
-        setIsRunning(false);
-      }
-      
-    } else {
-      if (ws.current) {
-        ws.current.close();
-      }
-    }
-
-    return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
-    };
-  }, [isRunning, patientId]);
+    setIsConsulting(false);
+  };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-950 text-slate-200 font-sans p-4 flex flex-col">
-      {/* Top Navbar / Demographics */}
-      <header className="flex-none flex flex-wrap justify-between items-center gap-4 mb-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg">
-        <div className="flex items-center space-x-4">
-          <div className="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
-            <Activity className="text-blue-400" size={28} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-100 tracking-wide">ICU DIGITAL TWIN</h1>
-            <p className="text-xs text-slate-400">BED {patientData.id} • WARD A</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4 md:space-x-8">
-          
-          <div className="hidden xl:flex space-x-2 bg-slate-800/50 p-1.5 rounded-lg border border-slate-700">
-            <button onClick={() => handleIntervention('administer_o2')} className="text-[10px] uppercase font-bold px-3 py-1.5 rounded bg-slate-700 hover:bg-cyan-600 hover:text-white transition-colors">Give O2</button>
-            <button onClick={() => handleIntervention('beta_blockers')} className="text-[10px] uppercase font-bold px-3 py-1.5 rounded bg-slate-700 hover:bg-green-600 hover:text-white transition-colors">Beta Blocker</button>
-            <button onClick={() => handleIntervention('fluids')} className="text-[10px] uppercase font-bold px-3 py-1.5 rounded bg-slate-700 hover:bg-blue-600 hover:text-white transition-colors">IV Fluids</button>
-          </div>
-          
-          <div className="hidden lg:flex flex-col">
-            <span className="text-xs text-slate-500 uppercase font-semibold">Patient ID</span>
-            <span className="font-mono text-slate-200">{patientData.id}</span>
-          </div>
-          <div className="hidden lg:flex flex-col">
-            <span className="text-xs text-slate-500 uppercase font-semibold">Demographics</span>
-            <span className="text-slate-200">{patientData.age}yo {patientData.gender}</span>
-          </div>
-          <div className="hidden lg:flex flex-col">
-            <span className="text-xs text-slate-500 uppercase font-semibold">Physician</span>
-            <span className="text-slate-200">{patientData.physician}</span>
-          </div>
-          
-          <div className="flex space-x-2">
-            {viewMode === 'live' ? (
-              <>
-                <button 
-                  onClick={() => setIsRunning(!isRunning)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-bold shadow transition ${
-                    isRunning ? 'bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50 hover:bg-emerald-500/30'
-                  }`}
-                >
-                  {isRunning ? <Square size={16} /> : <Play size={16} />}
-                  <span>{isRunning ? 'STOP' : 'LIVE'}</span>
-                </button>
-                <button 
-                  onClick={() => setViewMode('history')}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
-                >
-                  <History size={16} />
-                  <span>HISTORY</span>
-                </button>
-              </>
-            ) : (
-              <button 
-                onClick={() => { setViewMode('live'); setIsRunning(true); }}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition"
-              >
-                <Activity size={16} />
-                <span>BACK TO LIVE</span>
-              </button>
-            )}
-            <button 
-              onClick={() => setShowAuditTrail(true)}
-              className="flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
-            >
-              <Clock size={16} />
-              <span className="hidden sm:inline">AUDIT TRAIL</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Bento Box Grid */}
-      <div className="flex-1 min-h-0 grid grid-cols-12 gap-4">
+    <div className="min-h-screen p-4 lg:p-6 mx-auto flex flex-col max-w-[1600px] h-screen overflow-hidden">
+      
+      <div className="flex justify-between items-center flex-shrink-0 w-full gap-4">
+        <PatientHeader patientData={patientData} riskState={riskState} />
         
-        {/* Left Column: Authentic ICU Vitals Strip (4 cols) */}
-        <div className="col-span-4 flex flex-col gap-3 bg-black p-3 rounded-2xl border border-slate-800 min-h-0">
-          <ICUStripCard title="ECG / HR" value={metrics.hr} unit="BPM" color="green" series={hrSeriesSide.current} minScale={30} maxScale={170} />
-          <ICUStripCard title="SpO2" value={metrics.spo2} unit="%" color="cyan" series={spo2SeriesSide.current} minScale={70} maxScale={105} />
-          <ICUStripCard title="RESP" value={metrics.rr} unit="RPM" color="white" series={rrSeriesSide.current} minScale={0} maxScale={45} />
-          <ICUStripCard title="TEMP" value={metrics.temp} unit="°C" color="orange" series={tempSeriesSide.current} minScale={34} maxScale={41} />
+        <div className="flex gap-4">
+          <button 
+            onClick={() => setIsRunning(!isRunning)}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold shadow-lg transition-all ${
+              isRunning ? 'bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30'
+            }`}
+          >
+            {isRunning ? <Square size={18} /> : <Play size={18} />}
+            <span>{isRunning ? 'STOP MONITOR' : 'START MONITOR'}</span>
+          </button>
         </div>
+      </div>
 
-        {/* Center Column: Main Trajectory (5 cols) */}
-        <div className="col-span-5 flex flex-col gap-4 min-h-0">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden mt-4">
+        
+        {/* LEFT COLUMN: Vitals & Twin */}
+        <div className="xl:col-span-8 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2 pb-4">
           
-          {/* Risk Banner */}
-          <div className={`p-6 rounded-2xl border flex items-center justify-between transition-colors duration-500 ${
-            riskState === 'STABLE' ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-400' :
-            riskState === 'HIGH RISK' ? 'bg-yellow-950/30 border-yellow-900/50 text-yellow-500' :
-            'bg-red-950/30 border-red-900/50 text-red-400 shadow-[0_0_30px_rgba(220,38,38,0.15)]'
-          }`}>
-            <div>
-              <p className="text-xs uppercase tracking-wider font-bold opacity-80 mb-1">Current State</p>
-              <h2 className="text-3xl font-black tracking-tight">{riskState}</h2>
-            </div>
-            {riskState === 'CRITICAL' && <AlertTriangle size={40} className="animate-pulse" />}
-            {riskState === 'STABLE' && <Activity size={40} className="opacity-50" />}
+          <div className="flex items-center justify-between px-2 flex-shrink-0">
+            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <Activity className="w-4 h-4 text-emerald-400" /> Real-time Telemetry
+            </h2>
           </div>
 
-          {/* Main Chart (Smoothie Canvas) */}
-          <div className="flex-1 bg-black rounded-2xl border border-slate-800 p-6 flex flex-col relative overflow-hidden">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center">
-                <Zap size={16} className="mr-2 text-yellow-500" /> Overlay Monitor
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
+            <ICUStripCard title="HEART RATE" value={metrics.hr} unit="bpm" color="green" series={hrSeriesSide.current} minScale={40} maxScale={160} />
+            <ICUStripCard title="SpO2" value={metrics.spo2} unit="%" color="cyan" series={spo2SeriesSide.current} minScale={75} maxScale={100} />
+            <ICUStripCard title="RESP RATE" value={metrics.rr} unit="/min" color="white" series={rrSeriesSide.current} minScale={5} maxScale={40} />
+            <div className="flex gap-4">
+              <div className="flex-1 clinical-panel flex flex-col items-center justify-center p-4 h-24">
+                <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">NIBP</div>
+                <div className="text-3xl font-mono text-slate-200 tracking-tighter">
+                  {metrics.sbp.toFixed(0)}<span className="text-xl text-slate-500 mx-1">/</span>{metrics.dbp.toFixed(0)}
+                </div>
+              </div>
+              <div className="flex-1 clinical-panel flex flex-col items-center justify-center p-4 h-24">
+                <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">TEMP</div>
+                <div className="text-3xl font-mono text-slate-200 tracking-tighter">{metrics.temp.toFixed(1)}°</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 mt-2 min-h-[400px]">
+             <DigitalTwinPanel snapshot={twinSnapshot} trajectories={null} />
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN: Interventions & AI Consult */}
+        <div className="xl:col-span-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2 pb-4">
+          
+          {/* Active Medications Widget */}
+          {Object.keys(activeMedications).length > 0 && (
+            <div className="clinical-panel p-5 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)] flex-shrink-0">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-400" /> Pharmacokinetics (Live)
               </h3>
-              <div className="flex space-x-4 text-xs font-bold uppercase tracking-wider">
-                <span className="text-green-500">ECG (BPM)</span>
-                <span className="text-cyan-500">SpO2 (%)</span>
+              <div className="space-y-4">
+                {Object.entries(activeMedications).map(([med, level]) => (
+                  <div key={med}>
+                    <div className="flex justify-between text-sm mb-1 font-semibold text-slate-300">
+                      <span>{med}</span>
+                      <span>{level.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-500" style={{ width: `${level}%` }}></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-1 flex-1 relative min-h-0">
-              {viewMode === 'live' ? (
-                <>
-                  {!isRunning && hrSeriesMain.current.data.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-600 font-medium z-10 bg-black">
-                      Click LIVE STREAM to connect to patient data...
-                    </div>
-                  )}
-                  
-                  {/* Active Medications Widget */}
-                  {Object.keys(activeMedications).length > 0 && (
-                    <div className="absolute top-4 right-4 bg-slate-950/90 border border-slate-700 p-3 rounded-xl shadow-2xl backdrop-blur-md z-10 w-64">
-                      <h4 className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-2 flex items-center">
-                        <Activity size={12} className="mr-1 text-purple-400"/> Pharmacokinetics
-                      </h4>
-                      <div className="space-y-2.5">
-                        {Object.entries(activeMedications).map(([med, level]) => (
-                           <div key={med}>
-                             <div className="flex justify-between text-[10px] font-semibold mb-1">
-                               <span className="text-emerald-400 truncate pr-2">{med}</span>
-                               <span className="text-slate-300 font-mono">{level.toFixed(0)}%</span>
-                             </div>
-                             <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                               <div className="bg-emerald-500 h-full rounded-full transition-all duration-1000 ease-linear" style={{ width: `${Math.min(level, 100)}%` }}></div>
-                             </div>
-                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+          )}
 
-                  <canvas ref={mainCanvasRef} className="w-full h-full rounded-lg" style={{ display: 'block' }}></canvas>
-                </>
-              ) : (
-                <div className="absolute inset-0 p-4 bg-slate-950 rounded-lg border border-slate-800">
-                  {isFetchingHistory ? (
-                    <div className="flex h-full items-center justify-center text-slate-500">
-                      <RefreshCw className="animate-spin mr-2" /> Loading History...
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={historyData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="time" stroke="#64748b" fontSize={12} />
-                        <YAxis stroke="#64748b" fontSize={12} domain={[30, 170]} />
-                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }} />
-                        <Legend />
-                        <Line type="monotone" dataKey="hr" stroke="#22c55e" strokeWidth={2} dot={false} name="Heart Rate (BPM)" />
-                        <Line type="monotone" dataKey="spo2" stroke="#06b6d4" strokeWidth={2} dot={false} name="SpO2 (%)" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              )}
+          {/* Clinical Interventions */}
+          <div className="clinical-panel p-5 flex-shrink-0">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <HeartPulse className="w-4 h-4 text-rose-400" /> Clinical Interventions
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => handleIntervention('administer_o2')} className="p-3 bg-slate-800/50 hover:bg-cyan-900/40 border border-slate-700/50 hover:border-cyan-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-cyan-400 transition-all text-center">
+                + SUPPLEMENTAL O2
+              </button>
+              <button onClick={() => handleIntervention('fluids')} className="p-3 bg-slate-800/50 hover:bg-blue-900/40 border border-slate-700/50 hover:border-blue-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-blue-400 transition-all text-center">
+                + IV FLUIDS
+              </button>
+              <button onClick={() => handleIntervention('beta_blockers')} className="p-3 bg-slate-800/50 hover:bg-purple-900/40 border border-slate-700/50 hover:border-purple-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-purple-400 transition-all text-center col-span-2">
+                + BETA BLOCKERS
+              </button>
             </div>
           </div>
-        </div>
 
-        {/* Right Column: Explainability & Logs (3 cols) */}
-        <div className="col-span-3 overflow-y-auto pr-1 pb-4">
-          {/* AI Explainability */}
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 flex flex-col h-max min-h-full">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex justify-between items-center">
-              <span>Explainability Engine</span>
-              <button 
-                onClick={requestConsult}
-                disabled={isConsulting}
-                className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1.5 rounded-lg flex items-center font-bold transition disabled:opacity-50"
-              >
-                {isConsulting ? <RefreshCw size={14} className="animate-spin mr-2" /> : <Users size={14} className="mr-2" />}
-                {isConsulting ? "CONSULTING..." : "BOARD CONSULT"}
-              </button>
-            </h3>
-            
-            {/* LLM Clinical Note */}
-            <div className="mb-4 bg-slate-950 p-4 rounded-xl border border-slate-800 relative flex-none">
-              <div className="absolute top-0 right-0 px-2 py-1 bg-purple-500/20 text-purple-400 text-[9px] uppercase font-bold rounded-bl-lg rounded-tr-lg">LLM Note</div>
-              <p className="text-sm text-slate-300 leading-relaxed font-serif">
-                {llmSummary || "Waiting for baseline assessment..."}
-              </p>
+          {/* AI Consult Agent */}
+          <div className="clinical-panel p-0 overflow-hidden flex flex-col flex-1 min-h-[350px]">
+            <div className="p-4 border-b border-slate-800/60 bg-slate-900/30 flex justify-between items-center">
+               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                 <User className="w-4 h-4 text-purple-400" /> Board Consult (GenAI)
+               </h3>
+               <button 
+                  onClick={requestConsult} 
+                  disabled={isConsulting}
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+               >
+                 {isConsulting ? 'ANALYZING...' : 'RUN PIPELINE'}
+               </button>
             </div>
             
-            {/* True Digital Twin Visualization */}
-            <div className="min-h-[300px] mb-4">
-              <DigitalTwinPanel snapshot={twinSnapshot} trajectories={counterfactualData} />
-            </div>
-
-            <div className="flex-1">
-                {reasons.length > 0 ? (
-                    <ul className="space-y-2">
-                        {reasons.map((r, i) => (
-                            <li key={i} className="text-xs text-red-300 bg-red-950/40 p-2 rounded border border-red-900/50">
-                                  {r}
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <div className="h-full min-h-[100px] flex items-center justify-center border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/50">
-                        <div className="text-center p-4 text-slate-500 text-sm">
-                            <Activity className="mx-auto mb-2 opacity-50" size={24} />
-                            No structural anomalies.
+            <div className="p-5 overflow-y-auto flex-1 custom-scrollbar">
+              {!consultData ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-3 min-h-[200px]">
+                  <Activity className="w-8 h-8 opacity-50" />
+                  <p className="text-xs font-medium uppercase tracking-widest text-center">No Consult History<br/>Click Run Pipeline</p>
+                </div>
+              ) : (
+                <div className="space-y-5 text-sm">
+                  {typeof consultData.chief_resident === 'object' ? (
+                    <>
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1">Primary Diagnosis</div>
+                        <div className="font-semibold text-slate-200">{consultData.chief_resident.primary_diagnosis}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1">Synthesis</div>
+                        <div className="text-slate-300 leading-relaxed">{consultData.chief_resident.summary}</div>
+                      </div>
+                      {consultData.chief_resident.recommended_interventions?.length > 0 && (
+                        <div>
+                           <div className="text-[10px] uppercase font-bold text-cyan-400 tracking-widest mb-1">Recommendations</div>
+                           <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                             {consultData.chief_resident.recommended_interventions.map((item:string, i:number) => <li key={i}>{item}</li>)}
+                           </ul>
                         </div>
-                    </div>
-                )}
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Audit Trail Slide-over Overlay */}
-      {showAuditTrail && (
-        <div className="absolute inset-y-0 right-0 w-96 bg-slate-900 border-l border-slate-700 shadow-2xl z-40 flex flex-col transform transition-transform duration-300">
-          <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-slate-950/50">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center">
-              <Clock size={16} className="mr-2" /> Audit Trail
-            </h3>
-            <button 
-              onClick={() => setShowAuditTrail(false)}
-              className="text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-full transition-colors"
-            >
-              ✕
-            </button>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {logs.length === 0 ? (
-               <div className="text-slate-600 text-sm italic text-center mt-10">Waiting for events...</div>
-            ) : (
-               logs.map((log, i) => <LogItem key={i} time={log.time} type={log.type as any} message={log.message} />)
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Counterfactual Modal */}
-      {showCounterfactualModal && counterfactualData && (
-        <div className="absolute inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-8 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center mb-8 flex-none">
-              <h2 className="text-2xl font-bold text-slate-100 flex items-center tracking-wide">
-                <Activity className="mr-3 text-indigo-400" size={32} /> Counterfactual Trajectory Simulation
-              </h2>
-              <button onClick={() => setShowCounterfactualModal(false)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
-                ✕
-              </button>
-            </div>
-            
-            <p className="text-slate-400 mb-6">
-              Projecting 60 seconds into the future based on current state <span className="font-bold text-white">({counterfactualData.current_state})</span> using the ICU Early Warning Model.
-            </p>
-
-            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex-1 min-h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                  <XAxis dataKey="step" stroke="#94a3b8" tick={{fill: '#94a3b8'}} type="number" domain={[0, 'dataMax']} />
-                  <YAxis stroke="#94a3b8" tick={{fill: '#94a3b8'}} domain={[0, 100]} label={{ value: 'Risk %', angle: -90, position: 'insideLeft', fill: '#94a3b8' }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }}
-                    itemStyle={{ fontWeight: 'bold' }}
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  
-                  {Object.entries(counterfactualData.trajectories).map(([key, traj]: [string, any]) => (
-                    <Line 
-                      key={key}
-                      type="monotone"
-                      name={traj.label}
-                      data={traj.risk.map((r: number, i: number) => ({ step: i, risk: r }))}
-                      dataKey="risk"
-                      stroke={traj.color}
-                      strokeWidth={3}
-                      dot={false}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Consult Modal */}
-      {consultData && (
-        <div className="absolute inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-8 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center mb-8 flex-none">
-              <h2 className="text-2xl font-bold text-slate-100 flex items-center tracking-wide">
-                <Users className="mr-3 text-purple-400" size={32} /> Multi-Agent Medical Board
-              </h2>
-              <button onClick={() => setConsultData(null)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
-                ✕
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-6 mb-6 flex-none">
-              <div className="bg-slate-950/50 p-6 rounded-2xl border border-rose-900/40 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-rose-500/50"></div>
-                <h3 className="text-rose-400 font-bold mb-3 flex items-center text-lg"><HeartPulse className="mr-2" size={20}/> Virtual Cardiologist</h3>
-                <p className="text-sm text-slate-300 font-serif leading-relaxed whitespace-pre-wrap">{consultData.cardiologist}</p>
-              </div>
-              <div className="bg-slate-950/50 p-6 rounded-2xl border border-cyan-900/40 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/50"></div>
-                <h3 className="text-cyan-400 font-bold mb-3 flex items-center text-lg"><Wind className="mr-2" size={20}/> Virtual Pulmonologist</h3>
-                <p className="text-sm text-slate-300 font-serif leading-relaxed whitespace-pre-wrap">{consultData.pulmonologist}</p>
-              </div>
-            </div>
-
-            <div className="bg-purple-900/20 p-6 rounded-2xl border border-purple-500/30 relative flex-1">
-              <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/50 rounded-l-2xl"></div>
-              <h3 className="text-purple-400 font-bold text-xl mb-4 flex items-center"><User className="mr-2" size={24}/> Chief Resident Synthesis</h3>
-              {typeof consultData.chief_resident === 'object' ? (
-                <div className="space-y-4 text-sm text-slate-200">
-                  <div>
-                    <span className="text-xs uppercase font-bold text-purple-300">Summary</span>
-                    <p className="font-serif mt-1">{consultData.chief_resident.summary}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs uppercase font-bold text-emerald-400">Primary Diagnosis</span>
-                    <p className="font-serif mt-1">{consultData.chief_resident.primary_diagnosis}</p>
-                  </div>
-                  {consultData.chief_resident.recommended_interventions && consultData.chief_resident.recommended_interventions.length > 0 && (
-                    <div>
-                      <span className="text-xs uppercase font-bold text-cyan-400">Recommended Interventions</span>
-                      <ul className="list-disc list-inside mt-1 font-serif text-slate-300">
-                        {consultData.chief_resident.recommended_interventions.map((i: string, idx: number) => <li key={idx}>{i}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {consultData.chief_resident.critical_alerts && consultData.chief_resident.critical_alerts.length > 0 && (
-                    <div>
-                      <span className="text-xs uppercase font-bold text-rose-400">Critical Alerts</span>
-                      <ul className="list-disc list-inside mt-1 font-serif text-rose-300 bg-rose-950/30 p-2 rounded">
-                        {consultData.chief_resident.critical_alerts.map((a: string, idx: number) => <li key={idx}>{a}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {consultData.chief_resident.citations && consultData.chief_resident.citations.length > 0 && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Guideline Citations</span>
-                      <div className="flex gap-2 flex-wrap mt-2">
-                        {consultData.chief_resident.citations.map((cite: string, idx: number) => (
-                          <span key={idx} className="bg-slate-800 text-slate-300 text-xs px-2 py-1 rounded border border-slate-700">
-                            {cite}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                      )}
+                      {consultData.chief_resident.citations?.length > 0 && (
+                        <div className="pt-3 border-t border-slate-800/60">
+                           <div className="text-[10px] uppercase font-bold text-emerald-500 tracking-widest mb-2">RAG References</div>
+                           <div className="flex flex-wrap gap-2">
+                             {consultData.chief_resident.citations.map((cite:string, i:number) => (
+                               <span key={i} className="px-2 py-1 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 text-[10px]">{cite}</span>
+                             ))}
+                           </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-slate-300 leading-relaxed whitespace-pre-wrap">{consultData.chief_resident}</div>
                   )}
                 </div>
-              ) : (
-                <p className="text-base text-slate-200 font-serif leading-relaxed whitespace-pre-wrap">{consultData.chief_resident}</p>
               )}
             </div>
-            
-            {/* RAG Citations */}
-            {consultData.citations && consultData.citations.length > 0 && (
-              <div className="mt-6 bg-slate-950 p-4 rounded-xl border border-slate-800">
-                <h4 className="text-[10px] uppercase text-slate-500 font-bold mb-2 flex items-center">
-                  <Activity size={12} className="mr-1 text-emerald-400" /> Grounded In Clinical Protocols (RAG)
-                </h4>
-                <div className="flex gap-2 flex-wrap">
-                  {consultData.citations.map((cite: string, idx: number) => (
-                    <span key={idx} className="bg-emerald-900/30 text-emerald-400 text-xs px-3 py-1 rounded-full border border-emerald-800/50">
-                      {cite}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-      )}
 
-    </div>
-  );
-}
-
-// Authentic ICU Strip Card Component
-function ICUStripCard({ title, value, unit, color, series, minScale, maxScale }: { title: string, value: number, unit: string, color: string, series: any, minScale: number, maxScale: number }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  
-  const colorMap: Record<string, { bg: string, text: string, chart: string }> = {
-    green: { bg: 'bg-green-950/20', text: 'text-green-500', chart: '#22c55e' },
-    cyan: { bg: 'bg-cyan-950/20', text: 'text-cyan-400', chart: '#22d3ee' },
-    white: { bg: 'bg-slate-800/30', text: 'text-slate-200', chart: '#f1f5f9' },
-    orange: { bg: 'bg-orange-950/20', text: 'text-orange-500', chart: '#f97316' },
-  };
-
-  const style = colorMap[color];
-
-  useEffect(() => {
-    if (canvasRef.current && series) {
-      const chart = new SmoothieChart({
-        millisPerPixel: 15, // Fast scroll for ECG feel
-        grid: { strokeStyle: 'transparent', fillStyle: 'transparent', borderVisible: false },
-        labels: { disabled: true },
-        minValue: minScale,
-        maxValue: maxScale,
-        responsive: true
-      });
-      
-      // Removed fillStyle entirely for a pure neon line look
-      chart.addTimeSeries(series, { 
-        strokeStyle: style.chart, 
-        lineWidth: 2.5 
-      });
-      
-      chart.streamTo(canvasRef.current, 1000);
-      
-      return () => {
-         chart.stop();
-      };
-    }
-  }, [series, style.chart, minScale, maxScale]);
-
-  return (
-    <div className="flex h-24 overflow-hidden group">
-      {/* Waveform area (Left) */}
-      <div className="flex-[2] relative border border-slate-900 bg-black rounded-l-xl">
-        <canvas ref={canvasRef} className="w-full h-full" style={{ display: 'block' }}></canvas>
-        <div className={`absolute top-2 left-3 ${style.text} text-xs font-bold tracking-widest opacity-80`}>
-          {title}
         </div>
       </div>
-      
-      {/* Numbers area (Right) */}
-      <div className={`flex-1 flex flex-col justify-center items-end p-4 border-y border-r border-slate-900 rounded-r-xl ${style.bg}`}>
-        <div className={`text-4xl font-black font-mono tracking-tighter ${style.text}`}>
-          {value.toFixed(1)}
-        </div>
-        <div className={`text-[10px] font-bold uppercase mt-1 ${style.text} opacity-60 tracking-widest`}>
-          {unit}
-        </div>
-      </div>
-
-
-
     </div>
   );
 }
-
-function LogItem({ time, type, message }: { time: string, type: 'info' | 'warning' | 'critical', message: string }) {
-  const typeStyles = {
-    info: 'border-blue-500/30 text-slate-300',
-    warning: 'border-yellow-500/50 text-yellow-200/90',
-    critical: 'border-red-500/50 text-red-300 bg-red-950/20'
-  };
-
-  const dotStyles = {
-    info: 'bg-blue-400',
-    warning: 'bg-yellow-400',
-    critical: 'bg-red-400 animate-pulse'
-  };
-
-  return (
-    <div className={`p-3 rounded-lg border-l-2 text-sm ${typeStyles[type]} pl-3 relative`}>
-      <div className={`absolute -left-[5px] top-4 w-2 h-2 rounded-full ${dotStyles[type]}`}></div>
-      <div className="text-xs font-mono text-slate-500 mb-1">{time}</div>
-      <p className="leading-snug">{message}</p>
-    </div>
-  );
-}
-

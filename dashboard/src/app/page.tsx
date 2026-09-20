@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Activity, Users, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Activity, Users, AlertCircle, Signal, CheckCircle2, ChevronRight, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function WardView() {
@@ -24,59 +24,100 @@ export default function WardView() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-6">
-      <header className="flex justify-between items-center mb-8 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
-        <div className="flex items-center space-x-4">
-          <div className="bg-blue-600/20 p-3 rounded-xl border border-blue-500/30">
-            <Users className="text-blue-400" size={32} />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-100 tracking-wide">CENTRAL NURSING STATION</h1>
-            <p className="text-sm text-slate-400 mt-1">WARD A • {patients.length} BEDS OCCUPIED</p>
-          </div>
+    <div className="min-h-screen p-6 lg:p-8 xl:p-10 max-w-7xl mx-auto">
+      {/* Top Bar Header */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-50 tracking-tight flex items-center gap-3">
+            ICU Central Monitoring
+          </h1>
+          <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></span>
+            Live Telemetry • Ward A • {patients.length} Beds Occupied
+          </p>
         </div>
-        <div className="flex items-center space-x-4 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-           <div className="flex items-center text-sm font-semibold text-slate-400"><Activity size={16} className="mr-2" /> Live Roster</div>
+        
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-800/60 px-4 py-2 rounded-lg text-sm text-slate-300">
+            <Signal className="w-4 h-4 text-emerald-400" />
+            <span>Sensors Online</span>
+          </div>
+          <button className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 px-4 py-2 rounded-lg text-sm text-slate-200 transition-colors">
+            <Filter className="w-4 h-4" />
+            Filter
+          </button>
         </div>
       </header>
 
+      {/* Main Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="clinical-panel p-5 flex flex-col justify-between">
+          <div className="text-slate-400 text-xs uppercase tracking-widest font-semibold mb-2">Total Patients</div>
+          <div className="text-3xl font-light text-slate-50">{patients.length}</div>
+        </div>
+        <div className="clinical-panel p-5 flex flex-col justify-between border-emerald-500/20 bg-emerald-950/10">
+          <div className="text-emerald-400/80 text-xs uppercase tracking-widest font-semibold mb-2">Stable</div>
+          <div className="text-3xl font-light text-emerald-400">{patients.length}</div>
+        </div>
+        <div className="clinical-panel p-5 flex flex-col justify-between border-amber-500/20 bg-amber-950/10">
+          <div className="text-amber-400/80 text-xs uppercase tracking-widest font-semibold mb-2">Elevated Risk</div>
+          <div className="text-3xl font-light text-amber-400">0</div>
+        </div>
+        <div className="clinical-panel p-5 flex flex-col justify-between border-red-500/20 bg-red-950/10">
+          <div className="text-red-400/80 text-xs uppercase tracking-widest font-semibold mb-2">Critical</div>
+          <div className="text-3xl font-light text-red-400">0</div>
+        </div>
+      </div>
+
       {loading ? (
-        <div className="flex items-center justify-center h-64 text-slate-500">
-          <Activity className="animate-spin mr-3" size={24} /> Loading Patient Roster...
+        <div className="flex flex-col items-center justify-center h-64 text-slate-500 clinical-panel">
+          <Activity className="animate-spin mb-4 text-blue-500" size={32} />
+          <p className="text-sm font-medium tracking-wide">INITIALIZING WARD DATA...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {patients.map((p, index) => (
-            <div 
-              key={p.Patient_ID || index} 
-              onClick={() => router.push(`/patient/${p.Patient_ID}`)}
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-6 cursor-pointer hover:bg-slate-800 hover:border-slate-600 hover:shadow-2xl hover:shadow-blue-900/20 transition-all duration-300 group"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-slate-800 px-3 py-1 rounded text-xs font-bold text-slate-400 group-hover:text-slate-300">
-                  BED {String(index + 1).padStart(2, '0')}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {patients.map((p, index) => {
+            const bedNum = String(index + 1).padStart(2, '0');
+            const pId = p.Patient_ID || `P${String(index+1).padStart(3, '0')}`;
+            
+            return (
+              <div 
+                key={pId} 
+                onClick={() => router.push(`/patient/${p.Patient_ID}`)}
+                className="clinical-panel p-0 cursor-pointer hover:border-slate-600 hover:bg-slate-800/40 transition-all duration-300 group overflow-hidden relative flex flex-col h-[200px]"
+              >
+                {/* Header */}
+                <div className="p-4 border-b border-slate-800/60 bg-slate-900/30 flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-slate-500 bg-slate-950 px-2 py-1 rounded">BED {bedNum}</span>
+                    <span className="text-sm font-medium text-slate-200">Patient {pId}</span>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
                 </div>
-                <div className="flex items-center space-x-1 text-green-500 bg-green-500/10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">
-                  Stable
+                
+                {/* Body */}
+                <div className="p-4 flex-1 flex flex-col justify-center">
+                  <div className="flex items-center justify-between mb-4 text-sm">
+                    <div className="text-slate-400">Age: <span className="text-slate-200">{p.Age || 65}</span></div>
+                    <div className="text-slate-400">Sex: <span className="text-slate-200">{p.Gender == 1 ? "M" : "F"}</span></div>
+                  </div>
+                  
+                  {/* Mock Sparkline Area */}
+                  <div className="h-10 w-full flex items-end justify-between gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                    {[40, 45, 60, 50, 45, 65, 70, 60, 55, 65, 75, 80].map((val, i) => (
+                      <div key={i} className="w-full bg-blue-500/40 rounded-t-sm" style={{ height: `${val}%` }}></div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              
-              <h2 className="text-xl font-bold text-slate-100 mb-1">Patient {p.Patient_ID || `P00${index+1}`}</h2>
-              <div className="flex space-x-3 text-sm text-slate-500 mb-6">
-                <span>Age: {p.Age || 65}</span>
-                <span>•</span>
-                <span>Sex: {p.Gender == 1 ? "M" : "F"}</span>
-              </div>
 
-              <div className="bg-slate-950 rounded-lg p-3 flex justify-between items-center border border-slate-800 group-hover:border-slate-700">
-                 <div className="flex items-center">
-                    <Activity size={14} className="text-slate-500 mr-2" />
-                    <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Telemetry</span>
-                 </div>
-                 <span className="text-xs font-bold text-blue-400 group-hover:text-blue-300">CONNECT &rarr;</span>
+                {/* Footer */}
+                <div className="px-4 py-3 bg-slate-950/40 flex justify-between items-center text-xs font-semibold text-slate-500 group-hover:text-blue-400 transition-colors border-t border-slate-800/60">
+                  <span className="flex items-center gap-1"><Activity className="w-3 h-3" /> DIGITAL TWIN</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
