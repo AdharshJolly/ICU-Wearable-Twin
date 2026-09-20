@@ -5,6 +5,7 @@ import { Activity, Thermometer, Wind, HeartPulse, Play, Square, User, Users, Ale
 // @ts-ignore
 import { SmoothieChart, TimeSeries } from 'smoothie';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import DigitalTwinPanel from '@/components/DigitalTwinPanel';
 
 export default function Dashboard({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -54,6 +55,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const [consultData, setConsultData] = useState<any>(null);
   const [isConsulting, setIsConsulting] = useState(false);
   const [counterfactualData, setCounterfactualData] = useState<any>(null);
+  const [showCounterfactualModal, setShowCounterfactualModal] = useState<boolean>(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [riskForecast, setRiskForecast] = useState<any>(null);
   const [showAuditTrail, setShowAuditTrail] = useState(false);
@@ -81,6 +83,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
       });
       const data = await res.json();
       setCounterfactualData(data);
+      setShowCounterfactualModal(true);
     } catch(err) {
       console.error(err);
     }
@@ -142,6 +145,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   });
 
   const [llmSummary, setLlmSummary] = useState<string>("");
+  const [twinSnapshot, setTwinSnapshot] = useState<any>(null);
 
   const handleIntervention = (action: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -250,6 +254,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         if (data.llm_summary) {
            setLlmSummary(data.llm_summary);
         }
+        setTwinSnapshot(data);
       };
 
       ws.current.onclose = () => {
@@ -473,68 +478,9 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
               </p>
             </div>
             
-            {/* Predictive Risk Forecast */}
-            <div className="mb-4 bg-slate-950 p-4 rounded-xl border border-slate-800 relative flex-none">
-              <div className="absolute top-0 right-0 px-2 py-1 bg-cyan-500/20 text-cyan-400 text-[9px] uppercase font-bold rounded-bl-lg rounded-tr-lg">Ensemble Model Risk</div>
-              
-              {riskForecast ? (
-                <div>
-                  <div className="flex items-end mb-2">
-                    <span className="text-3xl font-bold font-mono text-cyan-400 mr-2">{riskForecast.risk_probability}%</span>
-                    <span className="text-xs text-slate-400 mb-1 leading-tight">Ensemble Probability<br/>(1 Hour Horizon)</span>
-                  </div>
-                  
-                  <div className="flex flex-col space-y-2 mb-4">
-                    <div className="flex space-x-2">
-                      <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
-                        <span className="text-purple-400 block font-sans">LSTM</span>
-                        {riskForecast.lstm_prob}%
-                      </div>
-                      <div className="bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[9px] font-mono text-slate-400 flex-1">
-                        <span className="text-blue-400 block font-sans">XGBoost</span>
-                        {riskForecast.xgboost_prob}%
-                      </div>
-                    </div>
-                    {/* Interactive Weight Slider (Mock for UI Demo) */}
-                    <div className="px-1 mt-2">
-                      <div className="flex justify-between text-[8px] text-slate-500 mb-1 font-bold uppercase">
-                        <span>100% PyTorch</span>
-                        <span>100% XGBoost</span>
-                      </div>
-                      <input type="range" min="0" max="100" defaultValue="40" className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 mt-2">
-                    <div className="text-[10px] uppercase text-slate-500 font-bold mb-1">SHAP Feature Explanations</div>
-                    {riskForecast.top_factors.map((factor: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between bg-slate-900 rounded p-1.5 border border-slate-800">
-                        <span className="text-[11px] text-slate-300 truncate w-32">{factor.description}</span>
-                        <div className="flex-1 mx-2 bg-slate-950 h-1.5 rounded-full overflow-hidden flex">
-                          {factor.shap_impact > 0 ? (
-                            <>
-                              <div className="flex-1 border-r border-slate-800"></div>
-                              <div className="flex-1 bg-red-500" style={{ width: `${Math.min(factor.shap_impact * 20, 100)}%` }}></div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex-1 bg-blue-500 ml-auto border-r border-slate-800" style={{ width: `${Math.min(Math.abs(factor.shap_impact) * 20, 100)}%` }}></div>
-                              <div className="flex-1"></div>
-                            </>
-                          )}
-                        </div>
-                        <span className={`text-[10px] font-mono font-bold ${factor.shap_impact > 0 ? 'text-red-400' : 'text-blue-400'}`}>
-                          {factor.shap_impact > 0 ? '+' : ''}{factor.shap_impact.toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-slate-500 flex items-center h-24 justify-center">
-                  <RefreshCw className="animate-spin mr-2" size={14} /> Aggregating temporal features...
-                </div>
-              )}
+            {/* True Digital Twin Visualization */}
+            <div className="flex-1 min-h-[300px] mb-4">
+              <DigitalTwinPanel snapshot={twinSnapshot} trajectories={counterfactualData} />
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -586,14 +532,14 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
       )}
 
       {/* Counterfactual Modal */}
-      {counterfactualData && (
+      {showCounterfactualModal && counterfactualData && (
         <div className="absolute inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-8 backdrop-blur-md">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl flex flex-col">
             <div className="flex justify-between items-center mb-8 flex-none">
               <h2 className="text-2xl font-bold text-slate-100 flex items-center tracking-wide">
                 <Activity className="mr-3 text-indigo-400" size={32} /> Counterfactual Trajectory Simulation
               </h2>
-              <button onClick={() => setCounterfactualData(null)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+              <button onClick={() => setShowCounterfactualModal(false)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
                 ✕
               </button>
             </div>
