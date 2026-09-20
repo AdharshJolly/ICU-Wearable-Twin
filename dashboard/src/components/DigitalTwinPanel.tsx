@@ -9,7 +9,11 @@ interface DigitalTwinPanelProps {
 
 export default function DigitalTwinPanel({ snapshot, trajectories }: DigitalTwinPanelProps) {
   if (!snapshot || !snapshot.baseline) return (
-    <div className="clinical-panel p-6 animate-pulse h-full flex flex-col justify-between">
+    <div 
+      className="clinical-panel p-6 animate-pulse h-full flex flex-col justify-between"
+      aria-busy="true"
+      aria-label="Loading digital twin state"
+    >
       <div className="h-6 bg-slate-800/50 rounded w-1/3 mb-4"></div>
       <div className="h-12 bg-slate-800/50 rounded w-1/2 mb-6"></div>
       <div className="space-y-4">
@@ -38,7 +42,7 @@ export default function DigitalTwinPanel({ snapshot, trajectories }: DigitalTwin
     sbp: getDeviation(sbp, baseline.sbp)
   };
 
-  let chartData: any = [];
+  let chartData: any[] = [];
   if (trajectories && trajectories.steps && trajectories.trajectories) {
     const steps = trajectories.steps;
     const trajKeys = Object.keys(trajectories.trajectories);
@@ -50,10 +54,10 @@ export default function DigitalTwinPanel({ snapshot, trajectories }: DigitalTwin
   }
 
   return (
-    <div className="clinical-panel p-6 h-full flex flex-col">
+    <div className="clinical-panel p-6 h-full flex flex-col" aria-label="Digital Twin Overview" role="region">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-purple-400" />
+          <Activity className="w-5 h-5 text-purple-400" aria-hidden="true" />
           Digital Twin State
         </h2>
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
@@ -63,11 +67,11 @@ export default function DigitalTwinPanel({ snapshot, trajectories }: DigitalTwin
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-[#020617]/50 p-4 rounded-xl border border-slate-800/60">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Calibrated Risk</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Calibrated Risk</div>
           <div className="text-3xl clinical-data-value text-slate-50">{risk_probability.toFixed(1)}<span className="text-lg text-slate-500 ml-1">%</span></div>
         </div>
         <div className="bg-[#020617]/50 p-4 rounded-xl border border-slate-800/60">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Model Confidence</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Model Confidence</div>
           <div className="text-xl font-bold text-slate-200 mt-1">{confidence}</div>
         </div>
       </div>
@@ -76,25 +80,25 @@ export default function DigitalTwinPanel({ snapshot, trajectories }: DigitalTwin
         <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest border-b border-slate-800/60 pb-2">Physiological Deviation</h3>
         <div className="space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center text-slate-400 font-medium"><HeartPulse className="w-4 h-4 mr-2" /> Heart Rate</span>
+            <span className="flex items-center text-slate-400 font-medium"><HeartPulse className="w-4 h-4 mr-2" aria-hidden="true" /> Heart Rate</span>
             <span className={`clinical-data-value ${devs.hr.dir === 'up' ? 'text-red-400' : 'text-slate-300'}`}>
               {devs.hr.sign}{devs.hr.val} <span className="text-xs opacity-50">bpm</span>
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center text-slate-400 font-medium"><Wind className="w-4 h-4 mr-2" /> Respiratory</span>
+            <span className="flex items-center text-slate-400 font-medium"><Wind className="w-4 h-4 mr-2" aria-hidden="true" /> Respiratory</span>
             <span className={`clinical-data-value ${devs.rr.dir === 'up' ? 'text-amber-400' : 'text-slate-300'}`}>
               {devs.rr.sign}{devs.rr.val} <span className="text-xs opacity-50">/min</span>
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center text-slate-400 font-medium"><Activity className="w-4 h-4 mr-2" /> SpO₂</span>
+            <span className="flex items-center text-slate-400 font-medium"><Activity className="w-4 h-4 mr-2" aria-hidden="true" /> SpO₂</span>
             <span className={`clinical-data-value ${devs.spo2.dir === 'down' ? 'text-red-400' : 'text-slate-300'}`}>
               {devs.spo2.sign}{devs.spo2.val} <span className="text-xs opacity-50">%</span>
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center text-slate-400 font-medium"><ShieldAlert className="w-4 h-4 mr-2" /> Systolic BP</span>
+            <span className="flex items-center text-slate-400 font-medium"><ShieldAlert className="w-4 h-4 mr-2" aria-hidden="true" /> Systolic BP</span>
             <span className={`clinical-data-value ${devs.sbp.dir === 'down' ? 'text-amber-400' : 'text-slate-300'}`}>
               {devs.sbp.sign}{devs.sbp.val} <span className="text-xs opacity-50">mmHg</span>
             </span>
@@ -105,7 +109,7 @@ export default function DigitalTwinPanel({ snapshot, trajectories }: DigitalTwin
       <div className="flex-1 flex flex-col">
         <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest border-b border-slate-800/60 pb-2">Counterfactual Trajectory</h3>
         {chartData.length > 0 ? (
-          <div className="flex-1 min-h-[200px]">
+          <div className="flex-1 min-h-[200px]" role="img" aria-label="Line chart showing projected risk across different interventions">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />

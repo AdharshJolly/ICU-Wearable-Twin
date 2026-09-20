@@ -14,41 +14,41 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}>
-      <body className="h-full flex bg-[#020617] text-slate-50 overflow-hidden">
-        {/* Persistent Side Navigation */}
-        <aside className="w-16 lg:w-20 border-r border-slate-800/60 bg-slate-950/80 backdrop-blur-xl flex flex-col items-center py-6 flex-shrink-0 z-50">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30 mb-8 shadow-lg shadow-blue-500/10">
+      <body className="h-full flex flex-col md:flex-row bg-[#020617] text-slate-50 overflow-hidden">
+        {/* Responsive Navigation: Bottom on mobile, Side on desktop */}
+        <aside className="w-full h-16 md:w-16 lg:w-20 md:h-full border-t md:border-t-0 md:border-r border-slate-800/60 bg-slate-950/80 backdrop-blur-xl flex flex-row md:flex-col items-center justify-around md:justify-start py-0 md:py-6 flex-shrink-0 z-50 order-last md:order-first">
+          <div className="hidden md:flex w-10 h-10 rounded-xl bg-blue-500/20 items-center justify-center border border-blue-500/30 mb-8 shadow-lg shadow-blue-500/10">
             <Activity className="text-blue-400 w-5 h-5" />
           </div>
           
-          <nav className="flex-1 flex flex-col items-center gap-6 w-full">
-            <a href="/" className="p-3 rounded-xl bg-slate-800/50 text-slate-200 border border-slate-700/50 transition-colors tooltip-trigger relative group">
+          <nav className="flex flex-row md:flex-col items-center justify-around md:justify-start gap-2 md:gap-6 w-full md:flex-1 h-full md:h-auto px-4 md:px-0">
+            <a href="/" aria-label="Ward View" className="p-3 rounded-xl bg-slate-800/50 text-slate-200 border border-slate-700/50 transition-colors tooltip-trigger relative group">
               <LayoutDashboard className="w-5 h-5" />
-              <span className="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700">Ward View</span>
+              <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 pointer-events-none">Ward View</span>
             </a>
-            <button className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
+            <button aria-label="Patient Roster" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
               <Users className="w-5 h-5" />
-              <span className="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200">Patient Roster</span>
+              <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200 pointer-events-none">Patient Roster</span>
             </button>
-            <button className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
+            <button aria-label="Digital Twins" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
               <BrainCircuit className="w-5 h-5" />
-              <span className="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200">Digital Twins</span>
+              <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200 pointer-events-none">Digital Twins</span>
             </button>
-            <button className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
+            <button aria-label="Data Logs" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors group relative">
               <Database className="w-5 h-5" />
-              <span className="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200">Data Logs</span>
+              <span className="hidden md:block absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700 text-slate-200 pointer-events-none">Data Logs</span>
             </button>
           </nav>
 
-          <div className="mt-auto flex flex-col gap-4">
-            <button className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors">
+          <div className="hidden md:flex mt-auto flex-col gap-4">
+            <button aria-label="Settings" className="p-3 rounded-xl text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 transition-colors">
               <Settings className="w-5 h-5" />
             </button>
           </div>
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 h-full overflow-y-auto relative bg-[#020617]">
+        <main className="flex-1 h-[calc(100%-4rem)] md:h-full overflow-y-auto relative bg-[#020617] order-first md:order-last">
           {children}
         </main>
       </body>

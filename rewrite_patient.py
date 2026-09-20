@@ -1,3 +1,6 @@
+import codecs
+
+content = r"\"\"
 "use client";
 
 import React, { useState, useEffect, useRef, use } from 'react';
@@ -16,7 +19,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const [riskState, setRiskState] = useState('STABLE');
   const [patientData, setPatientData] = useState({ 
     id: patientId, 
-    name: `Patient ${patientId}`,
+    name: Patient \,
     age: 65,
     gender: 'Unknown',
     physician: 'Dr. Sarah Chen'
@@ -60,13 +63,13 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   }, []);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}`)
+    fetch(\/api/patients/\)
       .then(res => res.json())
       .then(data => {
         if (!data.error) {
           setPatientData({
             id: data.id,
-            name: `Patient ${data.id}`,
+            name: Patient \,
             age: data.age,
             gender: data.gender,
             physician: data.physician
@@ -77,7 +80,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     if (isRunning) {
-      ws.current = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace('http', 'ws')}/ws/simulate/${patientId}`); 
+      ws.current = new WebSocket(\/ws/simulate/\); 
       setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: 'WebSocket Connected. Streaming Patient Data...' }, ...prev]);
       
       ws.current.onmessage = (event) => {
@@ -93,7 +96,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             let type = 'info';
             if (data.risk_state === 'HIGH_RISK') type = 'warning';
             if (data.risk_state === 'CRITICAL') type = 'critical';
-            setLogs(prev => [{ time: data.time, type, message: `Risk State changed to ${data.risk_state}` }, ...prev]);
+            setLogs(prev => [{ time: data.time, type, message: Risk State changed to \ }, ...prev]);
             setRiskState(data.risk_state);
         }
         
@@ -118,14 +121,14 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   const handleIntervention = (action: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ action }));
-      setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: `Applied Intervention: ${action.toUpperCase().replace('_', ' ')}` }, ...prev]);
+      setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: Applied Intervention: \ }, ...prev]);
     }
   };
 
   const requestConsult = async () => {
     setIsConsulting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/patients/${patientId}/consult`, { method: 'POST' });
+      const res = await fetch(\/api/patients/\/consult, { method: 'POST' });
       const data = await res.json();
       setConsultData(data);
     } catch(err) {
@@ -135,50 +138,47 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   };
 
   return (
-    <div className="min-h-screen xl:h-screen p-4 lg:p-6 mx-auto flex flex-col max-w-[1600px] xl:overflow-hidden">
+    <div className="min-h-screen p-4 lg:p-6 mx-auto flex flex-col max-w-[1600px] h-screen overflow-hidden">
       
-      <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 flex-shrink-0 w-full gap-4">
+      <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <PatientHeader patientData={patientData} riskState={riskState} />
         
-        <div className="flex gap-4 w-full md:w-auto">
+        <div className="flex gap-4">
           <button 
             onClick={() => setIsRunning(!isRunning)}
-            aria-label={isRunning ? "Stop Monitor" : "Start Monitor"}
-            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold shadow-lg transition-all ${
-              isRunning ? 'bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30'
-            }`}
+            className={lex items-center gap-2 px-6 py-3 rounded-xl font-bold shadow-lg transition-all \}
           >
-            {isRunning ? <Square size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
+            {isRunning ? <Square size={18} /> : <Play size={18} />}
             <span>{isRunning ? 'STOP MONITOR' : 'START MONITOR'}</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0 xl:overflow-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden">
         
         {/* LEFT COLUMN: Vitals & Twin */}
-        <div className="xl:col-span-8 flex flex-col gap-4 xl:overflow-y-auto custom-scrollbar pr-0 xl:pr-2 pb-4">
+        <div className="xl:col-span-8 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2 pb-4">
           
           <div className="flex items-center justify-between px-2 flex-shrink-0">
             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-4 h-4 text-emerald-400" aria-hidden="true" /> Real-time Telemetry
+              <Activity className="w-4 h-4 text-emerald-400" /> Real-time Telemetry
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0" aria-live="polite">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-shrink-0">
             <ICUStripCard title="HEART RATE" value={metrics.hr} unit="bpm" color="green" series={hrSeriesSide.current} minScale={40} maxScale={160} />
             <ICUStripCard title="SpO2" value={metrics.spo2} unit="%" color="cyan" series={spo2SeriesSide.current} minScale={75} maxScale={100} />
             <ICUStripCard title="RESP RATE" value={metrics.rr} unit="/min" color="white" series={rrSeriesSide.current} minScale={5} maxScale={40} />
             <div className="flex gap-4">
               <div className="flex-1 clinical-panel flex flex-col items-center justify-center p-4 h-24">
-                <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">NIBP</div>
+                <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">NIBP</div>
                 <div className="text-3xl font-mono text-slate-200 tracking-tighter">
-                  {metrics.sbp.toFixed(0)}<span className="text-xl text-slate-500 mx-1" aria-hidden="true">/</span>{metrics.dbp.toFixed(0)}
+                  {metrics.sbp.toFixed(0)}<span className="text-xl text-slate-500 mx-1">/</span>{metrics.dbp.toFixed(0)}
                 </div>
               </div>
               <div className="flex-1 clinical-panel flex flex-col items-center justify-center p-4 h-24">
-                <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">TEMP</div>
-                <div className="text-3xl font-mono text-slate-200 tracking-tighter">{metrics.temp.toFixed(1)}&deg;</div>
+                <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">TEMP</div>
+                <div className="text-3xl font-mono text-slate-200 tracking-tighter">{metrics.temp.toFixed(1)}°</div>
               </div>
             </div>
           </div>
@@ -190,13 +190,13 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         </div>
 
         {/* RIGHT COLUMN: Interventions & AI Consult */}
-        <div className="xl:col-span-4 flex flex-col gap-6 xl:overflow-y-auto custom-scrollbar pr-0 xl:pr-2 pb-4">
+        <div className="xl:col-span-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2 pb-4">
           
           {/* Active Medications Widget */}
           {Object.keys(activeMedications).length > 0 && (
             <div className="clinical-panel p-5 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)] flex-shrink-0">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" aria-hidden="true" /> Pharmacokinetics (Live)
+                <Zap className="w-4 h-4 text-amber-400" /> Pharmacokinetics (Live)
               </h3>
               <div className="space-y-4">
                 {Object.entries(activeMedications).map(([med, level]) => (
@@ -205,8 +205,8 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
                       <span>{med}</span>
                       <span>{level.toFixed(0)}%</span>
                     </div>
-                    <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-valuenow={level} aria-valuemin={0} aria-valuemax={100}>
-                      <div className="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-500" style={{ width: `${level}%` }}></div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-500" style={{ width: \% }}></div>
                     </div>
                   </div>
                 ))}
@@ -217,31 +217,31 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
           {/* Clinical Interventions */}
           <div className="clinical-panel p-5 flex-shrink-0">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <HeartPulse className="w-4 h-4 text-rose-400" aria-hidden="true" /> Clinical Interventions
+              <HeartPulse className="w-4 h-4 text-rose-400" /> Clinical Interventions
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => handleIntervention('administer_o2')} className="p-3 bg-slate-800/50 hover:bg-cyan-900/40 border border-slate-700/50 hover:border-cyan-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-cyan-400 transition-all text-center focus:ring-2 focus:ring-cyan-500 outline-none">
+              <button onClick={() => handleIntervention('administer_o2')} className="p-3 bg-slate-800/50 hover:bg-cyan-900/40 border border-slate-700/50 hover:border-cyan-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-cyan-400 transition-all text-center">
                 + SUPPLEMENTAL O2
               </button>
-              <button onClick={() => handleIntervention('fluids')} className="p-3 bg-slate-800/50 hover:bg-blue-900/40 border border-slate-700/50 hover:border-blue-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-blue-400 transition-all text-center focus:ring-2 focus:ring-blue-500 outline-none">
+              <button onClick={() => handleIntervention('fluids')} className="p-3 bg-slate-800/50 hover:bg-blue-900/40 border border-slate-700/50 hover:border-blue-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-blue-400 transition-all text-center">
                 + IV FLUIDS
               </button>
-              <button onClick={() => handleIntervention('beta_blockers')} className="p-3 bg-slate-800/50 hover:bg-purple-900/40 border border-slate-700/50 hover:border-purple-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-purple-400 transition-all text-center col-span-2 focus:ring-2 focus:ring-purple-500 outline-none">
+              <button onClick={() => handleIntervention('beta_blockers')} className="p-3 bg-slate-800/50 hover:bg-purple-900/40 border border-slate-700/50 hover:border-purple-500/50 rounded-xl text-xs font-bold text-slate-300 hover:text-purple-400 transition-all text-center col-span-2">
                 + BETA BLOCKERS
               </button>
             </div>
           </div>
 
           {/* AI Consult Agent */}
-          <div className="clinical-panel p-0 overflow-hidden flex flex-col flex-1 min-h-[400px]">
+          <div className="clinical-panel p-0 overflow-hidden flex flex-col flex-1 min-h-[350px]">
             <div className="p-4 border-b border-slate-800/60 bg-slate-900/30 flex justify-between items-center">
                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                 <User className="w-4 h-4 text-purple-400" aria-hidden="true" /> Board Consult (GenAI)
+                 <User className="w-4 h-4 text-purple-400" /> Board Consult (GenAI)
                </h3>
                <button 
                   onClick={requestConsult} 
                   disabled={isConsulting}
-                  className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 focus:ring-2 focus:ring-purple-400 outline-none"
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
                >
                  {isConsulting ? 'ANALYZING...' : 'RUN PIPELINE'}
                </button>
@@ -249,25 +249,25 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             
             <div className="p-5 overflow-y-auto flex-1 custom-scrollbar">
               {!consultData ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-3 min-h-[250px]">
-                  <Activity className="w-8 h-8 opacity-50" aria-hidden="true" />
+                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-3 min-h-[200px]">
+                  <Activity className="w-8 h-8 opacity-50" />
                   <p className="text-xs font-medium uppercase tracking-widest text-center">No Consult History<br/>Click Run Pipeline</p>
                 </div>
               ) : (
-                <div className="space-y-5 text-sm" aria-live="polite">
+                <div className="space-y-5 text-sm">
                   {typeof consultData.chief_resident === 'object' ? (
                     <>
                       <div>
-                        <div className="text-xs uppercase font-bold text-slate-500 tracking-widest mb-1">Primary Diagnosis</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1">Primary Diagnosis</div>
                         <div className="font-semibold text-slate-200">{consultData.chief_resident.primary_diagnosis}</div>
                       </div>
                       <div>
-                        <div className="text-xs uppercase font-bold text-slate-500 tracking-widest mb-1">Synthesis</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mb-1">Synthesis</div>
                         <div className="text-slate-300 leading-relaxed">{consultData.chief_resident.summary}</div>
                       </div>
                       {consultData.chief_resident.recommended_interventions?.length > 0 && (
                         <div>
-                           <div className="text-xs uppercase font-bold text-cyan-400 tracking-widest mb-1">Recommendations</div>
+                           <div className="text-[10px] uppercase font-bold text-cyan-400 tracking-widest mb-1">Recommendations</div>
                            <ul className="list-disc pl-4 space-y-1 text-slate-300">
                              {consultData.chief_resident.recommended_interventions.map((item:string, i:number) => <li key={i}>{item}</li>)}
                            </ul>
@@ -275,10 +275,10 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
                       )}
                       {consultData.chief_resident.citations?.length > 0 && (
                         <div className="pt-3 border-t border-slate-800/60">
-                           <div className="text-xs uppercase font-bold text-emerald-500 tracking-widest mb-2">RAG References</div>
+                           <div className="text-[10px] uppercase font-bold text-emerald-500 tracking-widest mb-2">RAG References</div>
                            <div className="flex flex-wrap gap-2">
                              {consultData.chief_resident.citations.map((cite:string, i:number) => (
-                               <span key={i} className="px-2 py-1 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 text-xs">{cite}</span>
+                               <span key={i} className="px-2 py-1 bg-emerald-950/30 border border-emerald-900/50 rounded text-emerald-400 text-[10px]">{cite}</span>
                              ))}
                            </div>
                         </div>
@@ -297,3 +297,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     </div>
   );
 }
+"\"\"
+
+with codecs.open('dashboard/src/app/patient/[id]/page.tsx', 'w', encoding='utf-8') as f:
+    f.write(content)
