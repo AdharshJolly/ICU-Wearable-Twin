@@ -143,6 +143,26 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
     sbp: 120,
     dbp: 80
   });
+  const metricsRef = useRef(metrics);
+  useEffect(() => {
+    metricsRef.current = metrics;
+  }, [metrics]);
+
+  // Smooth out chart by pushing last known value frequently
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const m = metricsRef.current;
+      hrSeriesSide.current.append(now, m.hr);
+      spo2SeriesSide.current.append(now, m.spo2);
+      rrSeriesSide.current.append(now, m.rr);
+      tempSeriesSide.current.append(now, m.temp);
+      
+      hrSeriesMain.current.append(now, m.hr);
+      spo2SeriesMain.current.append(now, m.spo2);
+    }, 250);
+    return () => clearInterval(interval);
+  }, []);
 
   const [llmSummary, setLlmSummary] = useState<string>("");
   const [twinSnapshot, setTwinSnapshot] = useState<any>(null);
@@ -209,16 +229,7 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
 
       ws.current.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        const now = new Date().getTime();
         
-        hrSeriesSide.current.append(now, data.hr);
-        spo2SeriesSide.current.append(now, data.spo2);
-        rrSeriesSide.current.append(now, data.rr);
-        tempSeriesSide.current.append(now, data.temp);
-        
-        hrSeriesMain.current.append(now, data.hr);
-        spo2SeriesMain.current.append(now, data.spo2);
-
         setMetrics({
           hr: data.hr,
           rr: data.rr,
