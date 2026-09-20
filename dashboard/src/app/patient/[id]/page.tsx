@@ -9,6 +9,7 @@ import DigitalTwinPanel from '@/components/DigitalTwinPanel';
 import PatientHeader from '@/components/PatientHeader';
 import ICUStripCard from '@/components/ICUStripCard';
 import MainMonitor from '@/components/MainMonitor';
+import HistoryMonitor from '@/components/HistoryMonitor';
 
 export default function Dashboard({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -115,6 +116,12 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
   }, [patientId]);
 
   useEffect(() => {
+    if (viewMode === 'history' && isRunning) {
+       setIsRunning(false); // Auto-pause live monitor if switching to history
+    }
+  }, [viewMode]);
+
+  useEffect(() => {
     if (isRunning) {
       ws.current = new WebSocket(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace('http', 'ws')}/ws/simulate/${patientId}`); 
       setLogs(prev => [{ time: new Date().toLocaleTimeString(), type: 'info', message: 'WebSocket Connected. Streaming Patient Data...' }, ...prev]);
@@ -187,15 +194,27 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         
         <div className="flex gap-2 w-full md:w-auto">
           <button 
-            onClick={() => setIsRunning(!isRunning)}
-            aria-label={isRunning ? "Stop Monitor" : "Start Monitor"}
+            onClick={() => setViewMode(viewMode === 'live' ? 'history' : 'live')}
             className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold shadow-lg transition-all ${
-              isRunning ? 'bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30'
+              viewMode === 'history' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-500/30' : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:bg-slate-700/50'
             }`}
           >
-            {isRunning ? <Square size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
-            <span>{isRunning ? 'STOP MONITOR' : 'START MONITOR'}</span>
+            <History size={14} />
+            <span>{viewMode === 'history' ? 'BACK TO LIVE' : 'HISTORY'}</span>
           </button>
+
+          {viewMode === 'live' && (
+            <button 
+              onClick={() => setIsRunning(!isRunning)}
+              aria-label={isRunning ? "Stop Monitor" : "Start Monitor"}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold shadow-lg transition-all ${
+                isRunning ? 'bg-red-500/20 text-red-500 border border-red-500/50 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30'
+              }`}
+            >
+              {isRunning ? <Square size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
+              <span>{isRunning ? 'STOP MONITOR' : 'START MONITOR'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -205,7 +224,11 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         <div className="xl:col-span-8 flex flex-col gap-3 h-full xl:overflow-hidden pr-0 xl:pr-1 pb-0">
           
           <div className="flex-1 min-h-[250px]">
-            <MainMonitor metrics={metrics} isRunning={isRunning} />
+            {viewMode === 'live' ? (
+               <MainMonitor metrics={metrics} isRunning={isRunning} />
+            ) : (
+               <HistoryMonitor patientId={patientId} />
+            )}
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 flex-shrink-0" aria-live="polite">
