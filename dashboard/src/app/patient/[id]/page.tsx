@@ -99,7 +99,9 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
         }
         
         if (data.reasons && data.reasons.length > 0) setReasons(data.reasons);
-        if (data.twin_snapshot) setTwinSnapshot(data.twin_snapshot);
+        
+        // The data block itself IS the twin snapshot
+        setTwinSnapshot(data);
       };
 
       ws.current.onclose = () => {
