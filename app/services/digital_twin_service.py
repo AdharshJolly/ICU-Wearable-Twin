@@ -13,13 +13,58 @@ class PatientDigitalTwin:
         self.current_state = "STABLE"
         self.consecutive_state_ticks = 0
         self.last_risk = 0.0
+        self.active_medications = {}
+        
+    def apply_intervention(self, action: str):
+        if action == "beta_blockers":
+            self.active_medications["Beta Blockers"] = 100
+        elif action == "fluids":
+            self.active_medications["IV Fluids"] = 100
+        elif action == "administer_o2":
+            self.active_medications["Supplemental O2"] = 100
+            
+    def _decay_medications(self):
+        decay_rates = {
+            "Beta Blockers": 5,    # decays 5% per tick
+            "IV Fluids": 8,        # decays 8% per tick
+            "Supplemental O2": 10  # decays 10% per tick
+        }
+        expired = []
+        for med, level in self.active_medications.items():
+            rate = decay_rates.get(med, 5)
+            self.active_medications[med] = max(0, level - rate)
+            if self.active_medications[med] == 0:
+                expired.append(med)
+        for med in expired:
+            del self.active_medications[med]
 
-    def ingest(self, vitals: dict, active_medications: dict = None):
+    def ingest(self, vitals: dict):
         """
-        Ingest a new set of vitals, update memory, calculate risk, 
+        Ingest a new set of vitals, apply dynamic effects, update memory, calculate risk, 
         and run the state machine.
-        vitals must contain: hr, rr, spo2, sbp, dbp, temp
         """
+        self._decay_medications()
+        
+        # Apply pharmacological effects to vitals based on active medications
+        if "Beta Blockers" in self.active_medications:
+            # Lowers HR and BP
+            intensity = self.active_medications["Beta Blockers"] / 100.0
+            vitals["hr"] = max(40, vitals["hr"] - (15 * intensity))
+            vitals["sbp"] = max(80, vitals["sbp"] - (20 * intensity))
+            vitals["dbp"] = max(50, vitals["dbp"] - (10 * intensity))
+            
+        if "IV Fluids" in self.active_medications:
+            # Raises BP, slightly lowers HR
+            intensity = self.active_medications["IV Fluids"] / 100.0
+            vitals["sbp"] = min(180, vitals["sbp"] + (25 * intensity))
+            vitals["dbp"] = min(110, vitals["dbp"] + (15 * intensity))
+            vitals["hr"] = max(50, vitals["hr"] - (5 * intensity))
+            
+        if "Supplemental O2" in self.active_medications:
+            # Raises SpO2
+            intensity = self.active_medications["Supplemental O2"] / 100.0
+            vitals["spo2"] = min(100, vitals["spo2"] + (8 * intensity))
+
         # Update rolling memory
         for k in ['hr', 'rr', 'spo2', 'sbp', 'dbp']:
             self.history[k].append(vitals[k])
@@ -86,7 +131,7 @@ class PatientDigitalTwin:
             "confidence": confidence,
             "top_factors": forecast.get("top_factors", []) if forecast else [],
             "reasons": reasons,
-            "active_medications": active_medications or {}
+            "active_medications": self.active_medications
         }
         
         # 4. Save to DB
@@ -95,14 +140,22 @@ class PatientDigitalTwin:
         return snapshot
         
     def _persist(self, snapshot: dict, vitals: dict):
+        def numpy_converter(obj):
+            import numpy as np
+            if isinstance(obj, (np.int64, np.int32, np.int16, np.int8)):
+                return int(obj)
+            if isinstance(obj, (np.float64, np.float32, np.float16)):
+                return float(obj)
+            return str(obj)
+
         db = SessionLocal()
         try:
             # Save raw telemetry
             log = TelemetryLog(
                 patient_id=self.patient_id,
-                hr=vitals['hr'], rr=vitals['rr'],
-                spo2=vitals['spo2'], temp=vitals['temp'],
-                sbp=vitals['sbp'], dbp=vitals['dbp'],
+                hr=float(vitals['hr']), rr=float(vitals['rr']),
+                spo2=float(vitals['spo2']), temp=float(vitals['temp']),
+                sbp=float(vitals['sbp']), dbp=float(vitals['dbp']),
                 risk_state=snapshot['state']
             )
             db.add(log)
@@ -110,14 +163,14 @@ class PatientDigitalTwin:
             # Save Twin Snapshot
             twin_snap = TwinSnapshot(
                 patient_id=self.patient_id,
-                hr=vitals['hr'], rr=vitals['rr'],
-                spo2=vitals['spo2'], temp=vitals['temp'],
-                sbp=vitals['sbp'], dbp=vitals['dbp'],
-                risk_probability=snapshot['risk_probability'],
+                hr=float(vitals['hr']), rr=float(vitals['rr']),
+                spo2=float(vitals['spo2']), temp=float(vitals['temp']),
+                sbp=float(vitals['sbp']), dbp=float(vitals['dbp']),
+                risk_probability=float(snapshot['risk_probability']),
                 state=snapshot['state'],
                 confidence=snapshot['confidence'],
-                top_factors=json.dumps(snapshot['top_factors']),
-                baseline=json.dumps(self.baseline)
+                top_factors=json.dumps(snapshot['top_factors'], default=numpy_converter),
+                baseline=json.dumps(self.baseline, default=numpy_converter)
             )
             db.add(twin_snap)
             db.commit()

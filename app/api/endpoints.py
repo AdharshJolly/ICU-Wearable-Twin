@@ -12,7 +12,6 @@ from digital_twin.database import SessionLocal, TelemetryLog, TwinSnapshot
 from digital_twin.multi_agent import MultiAgentBoard
 from digital_twin.counterfactual_engine import CounterfactualEngine
 from digital_twin.llm_agent import ClinicalLLMAgent
-from digital_twin.deterioration_simulator import DeteriorationSimulator
 from app.services.risk_service import calculate_risk_forecast
 from app.schemas.schemas import CounterfactualRequest
 from app.services.digital_twin_service import digital_twin_service
@@ -153,48 +152,51 @@ def get_model_metrics():
 async def websocket_simulate(websocket: WebSocket, patient_id: str):
     await websocket.accept()
     
-    patient_data = {
-        "SystolicBP": 120, "DiastolicBP": 80,
-        "RestingHR": 75, "RespRate": 16,
-        "BodyTemp_C": 36.8, "SpO2": 98,
-        "RestingECG": 0, "HRV": 50
-    }
-    
-    simulator = DeteriorationSimulator(patient_data)
-    scenario_ticks = simulator.generate_scenario()
-    
     # Priority 1, 2, 17: Build a real Digital Twin Service!
     initial_vitals = {
-        'hr': patient_data['RestingHR'],
-        'rr': patient_data['RespRate'],
-        'spo2': patient_data['SpO2'],
-        'sbp': patient_data['SystolicBP'],
-        'dbp': patient_data['DiastolicBP']
+        'hr': 75,
+        'rr': 16,
+        'spo2': 98,
+        'sbp': 120,
+        'dbp': 80,
+        'temp': 36.8
     }
     twin = digital_twin_service.get_or_create_twin(patient_id, initial_vitals)
     
+    # Base patient state that slowly drifts
+    current_state = dict(initial_vitals)
+    
     try:
-        for i, reading in enumerate(scenario_ticks):
+        i = 0
+        while True:
+            i += 1
+            # Check for client interventions
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
                 data = json.loads(msg)
                 if "action" in data:
-                    simulator.apply_intervention(data["action"])
+                    twin.apply_intervention(data["action"])
             except asyncio.TimeoutError:
                 pass
             
-            # Extract current vitals
+            # Natural Drift (Patient slowly deteriorates if unmanaged)
+            current_state['hr'] += 0.5
+            current_state['spo2'] -= 0.1
+            current_state['sbp'] -= 0.5
+            
+            # Extract current vitals (with some noise)
             vitals = {
-                'hr': float(reading.get("RestingHR", 75) + (i % 2)),
-                'rr': float(reading.get("RespRate", 16) + (i % 2)),
-                'temp': float(reading.get("BodyTemp_C", 36.8)),
-                'spo2': float(reading.get("SpO2", 98) - (i % 2)),
-                'sbp': float(reading.get("SystolicBP", 120)),
-                'dbp': float(reading.get("DiastolicBP", 80))
+                'hr': current_state['hr'] + (i % 2),
+                'rr': current_state['rr'] + (i % 2),
+                'temp': current_state['temp'],
+                'spo2': current_state['spo2'] - (i % 2),
+                'sbp': current_state['sbp'],
+                'dbp': current_state['dbp']
             }
             
             # The Twin orchestrates risk forecasting, memory, hysteresis, and persistence
-            snapshot = twin.ingest(vitals, active_medications=reading.get("active_medications", {}))
+            # It also applies the pharmacological effects of active_medications to vitals!
+            snapshot = twin.ingest(vitals)
             
             # Prepare payload for frontend
             payload = {
@@ -206,8 +208,11 @@ async def websocket_simulate(websocket: WebSocket, patient_id: str):
                 "sbp": snapshot["sbp"],
                 "dbp": snapshot["dbp"],
                 "risk_state": snapshot["state"],
+                "risk_probability": snapshot.get("risk_probability", 0),
+                "confidence": snapshot.get("confidence", "UNKNOWN"),
                 "reasons": snapshot["reasons"],
-                "active_medications": snapshot["active_medications"]
+                "active_medications": snapshot["active_medications"],
+                "baseline": twin.baseline
             }
             
             # Fire LLM in background
