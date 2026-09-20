@@ -74,7 +74,9 @@ Pulmonologist Opinion:
 CLINICAL GUIDELINES (RAG Context):
 {rag_context}
 
-Provide a concise, authoritative synthesis."""
+Provide a concise, authoritative synthesis.
+CRITICAL: You MUST strictly base your interventions on the provided CLINICAL GUIDELINES. 
+Do not hallucinate guidelines. You must return an exact list of the guideline documents you used in the `citations` field."""
 
         from pydantic import BaseModel
         
@@ -83,6 +85,7 @@ Provide a concise, authoritative synthesis."""
             primary_diagnosis: str
             recommended_interventions: list[str]
             critical_alerts: list[str]
+            citations: list[str]
 
         response = await self.client.aio.models.generate_content(
             model='gemini-2.5-flash',

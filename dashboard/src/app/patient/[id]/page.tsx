@@ -608,7 +608,48 @@ export default function Dashboard({ params }: { params: Promise<{ id: string }> 
             <div className="bg-purple-900/20 p-6 rounded-2xl border border-purple-500/30 relative flex-1">
               <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/50 rounded-l-2xl"></div>
               <h3 className="text-purple-400 font-bold text-xl mb-4 flex items-center"><User className="mr-2" size={24}/> Chief Resident Synthesis</h3>
-              <p className="text-base text-slate-200 font-serif leading-relaxed whitespace-pre-wrap">{consultData.chief_resident}</p>
+              {typeof consultData.chief_resident === 'object' ? (
+                <div className="space-y-4 text-sm text-slate-200">
+                  <div>
+                    <span className="text-xs uppercase font-bold text-purple-300">Summary</span>
+                    <p className="font-serif mt-1">{consultData.chief_resident.summary}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase font-bold text-emerald-400">Primary Diagnosis</span>
+                    <p className="font-serif mt-1">{consultData.chief_resident.primary_diagnosis}</p>
+                  </div>
+                  {consultData.chief_resident.recommended_interventions && consultData.chief_resident.recommended_interventions.length > 0 && (
+                    <div>
+                      <span className="text-xs uppercase font-bold text-cyan-400">Recommended Interventions</span>
+                      <ul className="list-disc list-inside mt-1 font-serif text-slate-300">
+                        {consultData.chief_resident.recommended_interventions.map((i: string, idx: number) => <li key={idx}>{i}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {consultData.chief_resident.critical_alerts && consultData.chief_resident.critical_alerts.length > 0 && (
+                    <div>
+                      <span className="text-xs uppercase font-bold text-rose-400">Critical Alerts</span>
+                      <ul className="list-disc list-inside mt-1 font-serif text-rose-300 bg-rose-950/30 p-2 rounded">
+                        {consultData.chief_resident.critical_alerts.map((a: string, idx: number) => <li key={idx}>{a}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {consultData.chief_resident.citations && consultData.chief_resident.citations.length > 0 && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Guideline Citations</span>
+                      <div className="flex gap-2 flex-wrap mt-2">
+                        {consultData.chief_resident.citations.map((cite: string, idx: number) => (
+                          <span key={idx} className="bg-slate-800 text-slate-300 text-xs px-2 py-1 rounded border border-slate-700">
+                            {cite}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-base text-slate-200 font-serif leading-relaxed whitespace-pre-wrap">{consultData.chief_resident}</p>
+              )}
             </div>
             
             {/* RAG Citations */}
